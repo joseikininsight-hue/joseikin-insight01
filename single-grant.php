@@ -1,19 +1,15 @@
 <?php
 /**
- * Grant Single Page - Ultimate Perfect Edition v200
- * 補助金詳細ページ - 究極完全版
+ * Grant Single Page - Ultimate Perfect Edition v201
+ * 補助金詳細ページ - 究極完全版（修正版）
  * 
- * 【実装機能】
- * - E-E-A-T完全対応（監修者、出典、更新日、採択事例）
- * - SEO完全最適化（構造化データ、OGP、メタタグ）
- * - 人間工学に基づくUI/UX（視線誘導、Fパターン、ゲシュタルト原則）
- * - 認知負荷軽減設計（チャンク化、プログレッシブ・ディスクロージャー）
- * - 行動心理学応用（緊急性、社会的証明、損失回避）
- * - アクセシビリティ完全対応（WCAG 2.1 AA準拠）
- * - モバイルファースト（タッチ最適化、ボトムシート）
+ * 【修正内容】
+ * - CTAの文字色を白に修正
+ * - PC版AIアシスタント機能を追加
+ * - 下部バナー削除（共通バナー使用）
  * 
  * @package Grant_Insight_Ultimate
- * @version 200.0.0
+ * @version 201.0.0
  */
 
 if (!defined('ABSPATH')) exit;
@@ -84,7 +80,7 @@ $grant = array(
     'review_period' => get_field('review_period', $post_id) ?: '',
 );
 
-// デフォルト監修者情報（ACFにない場合）
+// デフォルト監修者情報
 if (empty($grant['supervisor_name'])) {
     $grant['supervisor_name'] = '補助金インサイト編集部';
     $grant['supervisor_title'] = '中小企業診断士監修';
@@ -307,27 +303,6 @@ if ($expenses) {
     );
 }
 
-if ($deadline_info) {
-    $faq_items[] = array(
-        'question' => '申請締切はいつですか？',
-        'answer' => $deadline_info . 'が申請締切です。余裕を持って準備することをお勧めします。'
-    );
-}
-
-if ($grant['preparation_time']) {
-    $faq_items[] = array(
-        'question' => '申請準備にどのくらい時間がかかりますか？',
-        'answer' => $grant['preparation_time']
-    );
-}
-
-if ($grant['review_period']) {
-    $faq_items[] = array(
-        'question' => '審査にはどのくらいかかりますか？',
-        'answer' => $grant['review_period']
-    );
-}
-
 // 申請チェックリスト項目
 $checklist_items = array(
     array('id' => 'target', 'label' => '対象者の要件を満たしている', 'required' => true),
@@ -337,7 +312,7 @@ $checklist_items = array(
     array('id' => 'expenses', 'label' => '対象経費に該当する事業である', 'required' => true),
 );
 
-// おすすめ補助金取得（キャッシュ化）
+// おすすめ補助金取得
 function get_ai_recommended_grants_v2($post_id, $taxonomies, $grant_data, $limit = 8) {
     $transient_key = 'gi_recommend_v2_' . $post_id;
     $cached = get_transient($transient_key);
@@ -373,35 +348,30 @@ function get_ai_recommended_grants_v2($post_id, $taxonomies, $grant_data, $limit
             $score = 0;
             $match_reasons = array();
             
-            // 市町村一致（最高スコア）
             $c_munis = wp_get_post_terms($cid, 'grant_municipality', array('fields' => 'ids'));
             if (!is_wp_error($c_munis) && count(array_intersect($c_munis, $current_muni_ids)) > 0) {
                 $score += 500;
                 $match_reasons[] = '同じ市町村';
             }
             
-            // 都道府県一致
             $c_prefs = wp_get_post_terms($cid, 'grant_prefecture', array('fields' => 'ids'));
             if (!is_wp_error($c_prefs) && count(array_intersect($c_prefs, $current_pref_ids)) > 0) {
                 $score += 300;
                 $match_reasons[] = '同じ都道府県';
             }
             
-            // 業種一致
             $c_inds = wp_get_post_terms($cid, 'grant_industry', array('fields' => 'ids'));
             if (!is_wp_error($c_inds) && count(array_intersect($c_inds, $current_ind_ids)) > 0) {
                 $score += 250;
                 $match_reasons[] = '同じ業種';
             }
             
-            // カテゴリ一致
             $c_cats = wp_get_post_terms($cid, 'grant_category', array('fields' => 'ids'));
             if (!is_wp_error($c_cats) && count(array_intersect($c_cats, $current_cat_ids)) > 0) {
                 $score += 200;
                 $match_reasons[] = '同じカテゴリ';
             }
             
-            // 金額帯が近い
             $c_amount = intval(get_field('max_amount_numeric', $cid));
             if ($c_amount > 0 && $grant_data['max_amount_numeric'] > 0) {
                 $ratio = $c_amount / $grant_data['max_amount_numeric'];
@@ -409,12 +379,6 @@ function get_ai_recommended_grants_v2($post_id, $taxonomies, $grant_data, $limit
                     $score += 100;
                     $match_reasons[] = '類似金額帯';
                 }
-            }
-            
-            // 難易度が近い
-            $c_difficulty = get_field('grant_difficulty', $cid);
-            if ($c_difficulty === $grant_data['grant_difficulty']) {
-                $score += 50;
             }
             
             if ($score >= 100) {
@@ -445,7 +409,7 @@ function get_ai_recommended_grants_v2($post_id, $taxonomies, $grant_data, $limit
 
 $recommended = get_ai_recommended_grants_v2($post_id, $taxonomies, $grant, 8);
 
-// 類似補助金（比較用）
+// 類似補助金
 $similar_grants = array();
 if (!empty($grant['similar_grants'])) {
     foreach ($grant['similar_grants'] as $similar_id) {
@@ -542,7 +506,6 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
 ?>
 
 <?php if (!$has_seo_plugin): ?>
-<!-- SEO Meta Tags -->
 <link rel="canonical" href="<?php echo esc_url($canonical_url); ?>">
 <meta name="description" content="<?php echo esc_attr($meta_desc); ?>">
 <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
@@ -559,7 +522,7 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
 <meta name="twitter:image" content="<?php echo esc_url($og_image); ?>">
 <?php endif; ?>
 
-<!-- 構造化データ（JSON-LD） -->
+<!-- 構造化データ -->
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
@@ -582,7 +545,6 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
             "name": <?php echo json_encode(get_the_title()); ?>,
             "description": <?php echo json_encode($meta_desc); ?>,
             "url": "<?php echo esc_js($canonical_url); ?>",
-            "image": "<?php echo esc_js($og_image); ?>",
             "funder": {
                 "@type": "Organization",
                 "name": <?php echo json_encode($grant['organization'] ?: $site_name); ?>
@@ -596,30 +558,6 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
             <?php endif; ?>
             "datePublished": "<?php echo get_the_date('c'); ?>",
             "dateModified": "<?php echo get_the_modified_date('c'); ?>"
-        },
-        {
-            "@type": "Article",
-            "headline": <?php echo json_encode(get_the_title()); ?>,
-            "description": <?php echo json_encode($meta_desc); ?>,
-            "image": "<?php echo esc_js($og_image); ?>",
-            "datePublished": "<?php echo get_the_date('c'); ?>",
-            "dateModified": "<?php echo get_the_modified_date('c'); ?>",
-            "author": {
-                "@type": "Organization",
-                "name": "<?php echo esc_js($site_name); ?>"
-            },
-            "publisher": {
-                "@type": "Organization",
-                "name": "<?php echo esc_js($site_name); ?>",
-                "logo": {
-                    "@type": "ImageObject",
-                    "url": "<?php echo esc_js(get_site_icon_url(512)); ?>"
-                }
-            },
-            "mainEntityOfPage": {
-                "@type": "WebPage",
-                "@id": "<?php echo esc_js($canonical_url); ?>"
-            }
         }
         <?php if (!empty($faq_items)): ?>
         ,{
@@ -644,12 +582,10 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
 
 <style>
 /* ===================================
-   Ultimate Design System v200
-   人間工学・認知心理学に基づく設計
+   Ultimate Design System v201
    =================================== */
 
 :root {
-    /* カラーシステム */
     --black: #0A0A0A;
     --white: #FFFFFF;
     --gray-25: #FCFCFC;
@@ -664,7 +600,6 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
     --gray-800: #262626;
     --gray-900: #171717;
     
-    /* セマンティックカラー */
     --primary: #0A0A0A;
     --primary-hover: #262626;
     --accent: #FBBF24;
@@ -680,50 +615,44 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
     --info: #2563EB;
     --info-light: #DBEAFE;
     
-    /* マーカーカラー（重要度別） */
     --marker-critical: #FEE2E2;
     --marker-important: #FEF3C7;
     --marker-normal: #E0F2FE;
     --marker-success: #D1FAE5;
     
-    /* タイポグラフィ - 黄金比に基づく */
-    --text-xs: 0.75rem;    /* 12px */
-    --text-sm: 0.875rem;   /* 14px */
-    --text-base: 1rem;     /* 16px */
-    --text-lg: 1.125rem;   /* 18px */
-    --text-xl: 1.25rem;    /* 20px */
-    --text-2xl: 1.5rem;    /* 24px */
-    --text-3xl: 1.875rem;  /* 30px */
-    --text-4xl: 2.25rem;   /* 36px */
-    --text-5xl: 3rem;      /* 48px */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 1.875rem;
+    --text-4xl: 2.25rem;
+    --text-5xl: 3rem;
     
-    /* 行間 - 読みやすさ最適化 */
     --leading-tight: 1.4;
     --leading-normal: 1.75;
     --leading-relaxed: 1.9;
     --leading-loose: 2.1;
     
-    /* スペーシング - 8pxグリッド */
-    --space-1: 0.25rem;   /* 4px */
-    --space-2: 0.5rem;    /* 8px */
-    --space-3: 0.75rem;   /* 12px */
-    --space-4: 1rem;      /* 16px */
-    --space-5: 1.25rem;   /* 20px */
-    --space-6: 1.5rem;    /* 24px */
-    --space-8: 2rem;      /* 32px */
-    --space-10: 2.5rem;   /* 40px */
-    --space-12: 3rem;     /* 48px */
-    --space-16: 4rem;     /* 64px */
-    --space-20: 5rem;     /* 80px */
-    --space-24: 6rem;     /* 96px */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+    --space-20: 5rem;
+    --space-24: 6rem;
     
-    /* レイアウト */
     --container-max: 1400px;
     --content-max: 780px;
     --sidebar-width: 360px;
     --gap: 48px;
     
-    /* ビジュアル */
     --radius-sm: 4px;
     --radius: 8px;
     --radius-lg: 12px;
@@ -741,11 +670,9 @@ $has_seo_plugin = (defined('WPSEO_VERSION') || defined('AIOSEO_VERSION') || clas
     --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
     
-    /* フォーカス */
     --focus-ring: 0 0 0 3px rgba(251, 191, 36, 0.5);
 }
 
-/* リセット・ベース */
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -759,9 +686,7 @@ html {
 }
 
 @media (max-width: 768px) {
-    html {
-        font-size: 15px;
-    }
+    html { font-size: 15px; }
 }
 
 body {
@@ -775,7 +700,6 @@ body {
     overflow-x: hidden;
 }
 
-/* アクセシビリティ */
 .sr-only {
     position: absolute;
     width: 1px;
@@ -793,7 +717,6 @@ body {
     box-shadow: var(--focus-ring);
 }
 
-/* スキップリンク */
 .skip-link {
     position: absolute;
     top: -100%;
@@ -807,11 +730,8 @@ body {
     transition: var(--transition);
 }
 
-.skip-link:focus {
-    top: var(--space-4);
-}
+.skip-link:focus { top: var(--space-4); }
 
-/* 読了進捗バー */
 .gi-progress {
     position: fixed;
     top: 0;
@@ -823,9 +743,7 @@ body {
     transition: width 50ms linear;
 }
 
-/* ===================================
-   パンくずリスト
-   =================================== */
+/* パンくず */
 .gi-breadcrumb {
     padding: var(--space-4) 0;
     font-size: var(--text-sm);
@@ -857,9 +775,7 @@ body {
     transition: var(--transition);
 }
 
-.gi-breadcrumb-link:hover {
-    color: var(--primary);
-}
+.gi-breadcrumb-link:hover { color: var(--primary); }
 
 .gi-breadcrumb-sep {
     color: var(--gray-300);
@@ -875,9 +791,7 @@ body {
     white-space: nowrap;
 }
 
-/* ===================================
-   コンテナ・グリッド
-   =================================== */
+/* コンテナ */
 .gi-container {
     max-width: var(--container-max);
     margin: 0 auto;
@@ -912,25 +826,13 @@ body {
 }
 
 @media (max-width: 1024px) {
-    .gi-layout {
-        grid-template-columns: 1fr;
-    }
-    
-    .gi-sidebar {
-        display: none;
-    }
-    
-    .gi-main {
-        max-width: 100%;
-    }
+    .gi-layout { grid-template-columns: 1fr; }
+    .gi-sidebar { display: none; }
+    .gi-main { max-width: 100%; }
 }
 
-/* ===================================
-   ヘッダー（ヒーローエリア）
-   =================================== */
-.gi-hero {
-    margin-bottom: var(--space-10);
-}
+/* ヒーロー */
+.gi-hero { margin-bottom: var(--space-10); }
 
 .gi-hero-badges {
     display: flex;
@@ -957,25 +859,10 @@ body {
     font-size: var(--text-sm);
 }
 
-.gi-badge-open {
-    background: var(--success);
-    color: var(--white);
-}
-
-.gi-badge-closed {
-    background: var(--gray-400);
-    color: var(--white);
-}
-
-.gi-badge-upcoming {
-    background: var(--info);
-    color: var(--white);
-}
-
-.gi-badge-suspended {
-    background: var(--warning);
-    color: var(--white);
-}
+.gi-badge-open { background: var(--success); color: var(--white); }
+.gi-badge-closed { background: var(--gray-400); color: var(--white); }
+.gi-badge-upcoming { background: var(--info); color: var(--white); }
+.gi-badge-suspended { background: var(--warning); color: var(--white); }
 
 .gi-badge-deadline {
     background: var(--gray-100);
@@ -1021,9 +908,7 @@ body {
 }
 
 @media (max-width: 768px) {
-    .gi-hero-title {
-        font-size: var(--text-2xl);
-    }
+    .gi-hero-title { font-size: var(--text-2xl); }
 }
 
 .gi-hero-meta {
@@ -1047,10 +932,7 @@ body {
     flex-shrink: 0;
 }
 
-/* ===================================
-   キーインフォカード（最重要情報）
-   視線誘導：左上から右下へ
-   =================================== */
+/* キーインフォ */
 .gi-key-info {
     background: linear-gradient(135deg, var(--gray-25) 0%, var(--white) 100%);
     border: 2px solid var(--gray-200);
@@ -1117,24 +999,12 @@ body {
     margin-top: var(--space-1);
 }
 
-.gi-key-item-value.amount {
-    color: var(--success-dark);
-}
-
-.gi-key-item-value.deadline {
-    color: var(--gray-900);
-}
-
+.gi-key-item-value.amount { color: var(--success-dark); }
+.gi-key-item-value.deadline { color: var(--gray-900); }
 .gi-key-item-value.deadline.critical,
-.gi-key-item-value.deadline.urgent {
-    color: var(--error);
-}
+.gi-key-item-value.deadline.urgent { color: var(--error); }
+.gi-key-item-value.deadline.warning { color: var(--warning); }
 
-.gi-key-item-value.deadline.warning {
-    color: var(--warning);
-}
-
-/* カウントダウン */
 .gi-countdown {
     display: flex;
     align-items: baseline;
@@ -1153,9 +1023,7 @@ body {
     font-weight: 600;
 }
 
-/* ===================================
-   カード共通スタイル
-   =================================== */
+/* カード */
 .gi-card {
     background: var(--white);
     border: 1px solid var(--gray-200);
@@ -1193,9 +1061,7 @@ body {
     margin: 0;
 }
 
-.gi-card-body {
-    padding: var(--space-6);
-}
+.gi-card-body { padding: var(--space-6); }
 
 .gi-card-content {
     font-size: var(--text-base);
@@ -1203,9 +1069,7 @@ body {
     color: var(--gray-700);
 }
 
-/* ===================================
-   AI要約カード
-   =================================== */
+/* AI要約カード */
 .gi-summary-card {
     border-color: var(--accent);
     background: linear-gradient(135deg, var(--accent-light) 0%, var(--white) 100%);
@@ -1235,10 +1099,7 @@ body {
     color: var(--gray-800);
 }
 
-/* ===================================
-   詳細テーブル
-   人間工学：左揃え、適切な余白、視覚的階層
-   =================================== */
+/* テーブル */
 .gi-table {
     width: 100%;
     border-collapse: separate;
@@ -1250,13 +1111,8 @@ body {
     border-bottom: 1px solid var(--gray-100);
 }
 
-.gi-table-row:last-child {
-    border-bottom: none;
-}
-
-.gi-table-row:hover {
-    background: var(--gray-25);
-}
+.gi-table-row:last-child { border-bottom: none; }
+.gi-table-row:hover { background: var(--gray-25); }
 
 .gi-table-key {
     flex: 0 0 180px;
@@ -1278,24 +1134,19 @@ body {
 }
 
 @media (max-width: 640px) {
-    .gi-table-row {
-        flex-direction: column;
-    }
-    
+    .gi-table-row { flex-direction: column; }
     .gi-table-key {
         flex: none;
         padding: var(--space-3) var(--space-4);
         padding-bottom: 0;
         background: transparent;
     }
-    
     .gi-table-value {
         padding: var(--space-2) var(--space-4);
         padding-bottom: var(--space-4);
     }
 }
 
-/* テーブル内の強調表示 */
 .gi-value-large {
     font-size: var(--text-2xl);
     font-weight: 800;
@@ -1307,19 +1158,10 @@ body {
     padding: 0 var(--space-1);
 }
 
-.gi-value-success {
-    color: var(--success-dark);
-}
+.gi-value-success { color: var(--success-dark); }
+.gi-value-warning { color: var(--warning); }
+.gi-value-error { color: var(--error); }
 
-.gi-value-warning {
-    color: var(--warning);
-}
-
-.gi-value-error {
-    color: var(--error);
-}
-
-/* タグ */
 .gi-tag {
     display: inline-flex;
     align-items: center;
@@ -1351,7 +1193,6 @@ body {
     color: var(--gray-600);
 }
 
-/* 難易度表示 */
 .gi-difficulty {
     display: flex;
     align-items: center;
@@ -1374,22 +1215,15 @@ body {
     color: var(--gray-300);
 }
 
-.gi-difficulty-star.active {
-    color: var(--accent);
-}
+.gi-difficulty-star.active { color: var(--accent); }
 
 .gi-difficulty-desc {
     font-size: var(--text-sm);
     color: var(--gray-500);
 }
 
-/* ===================================
-   申請チェックリスト
-   行動心理学：進捗の可視化、達成感
-   =================================== */
-.gi-checklist-card {
-    border-color: var(--success);
-}
+/* チェックリスト */
+.gi-checklist-card { border-color: var(--success); }
 
 .gi-checklist-card .gi-card-header {
     background: var(--success-light);
@@ -1444,17 +1278,9 @@ body {
     transition: var(--transition);
 }
 
-.gi-checklist-item:last-child {
-    border-bottom: none;
-}
-
-.gi-checklist-item:hover {
-    background: var(--gray-25);
-}
-
-.gi-checklist-item.checked {
-    background: var(--success-light);
-}
+.gi-checklist-item:last-child { border-bottom: none; }
+.gi-checklist-item:hover { background: var(--gray-25); }
+.gi-checklist-item.checked { background: var(--success-light); }
 
 .gi-checklist-checkbox {
     width: 24px;
@@ -1482,9 +1308,7 @@ body {
     transition: var(--transition);
 }
 
-.gi-checklist-item.checked .gi-checklist-checkbox svg {
-    opacity: 1;
-}
+.gi-checklist-item.checked .gi-checklist-checkbox svg { opacity: 1; }
 
 .gi-checklist-label {
     flex: 1;
@@ -1493,9 +1317,7 @@ body {
     line-height: var(--leading-normal);
 }
 
-.gi-checklist-item.checked .gi-checklist-label {
-    color: var(--success-dark);
-}
+.gi-checklist-item.checked .gi-checklist-label { color: var(--success-dark); }
 
 .gi-checklist-required {
     font-size: var(--text-xs);
@@ -1515,13 +1337,9 @@ body {
     color: var(--gray-700);
 }
 
-.gi-checklist-result-text.complete {
-    color: var(--success-dark);
-}
+.gi-checklist-result-text.complete { color: var(--success-dark); }
 
-/* ===================================
-   コンテンツエリア
-   =================================== */
+/* コンテンツ */
 .gi-content {
     font-size: var(--text-base);
     line-height: var(--leading-loose);
@@ -1551,18 +1369,14 @@ body {
     margin: var(--space-6) 0 var(--space-3);
 }
 
-.gi-content p {
-    margin-bottom: var(--space-5);
-}
+.gi-content p { margin-bottom: var(--space-5); }
 
 .gi-content ul, .gi-content ol {
     margin: var(--space-4) 0;
     padding-left: var(--space-6);
 }
 
-.gi-content li {
-    margin-bottom: var(--space-2);
-}
+.gi-content li { margin-bottom: var(--space-2); }
 
 .gi-content a {
     color: var(--info);
@@ -1570,9 +1384,7 @@ body {
     text-underline-offset: 2px;
 }
 
-.gi-content a:hover {
-    color: var(--primary);
-}
+.gi-content a:hover { color: var(--primary); }
 
 .gi-content strong {
     font-weight: 700;
@@ -1587,26 +1399,7 @@ body {
     border-radius: 0 var(--radius) var(--radius) 0;
 }
 
-.gi-content table {
-    width: 100%;
-    margin: var(--space-6) 0;
-    border-collapse: collapse;
-}
-
-.gi-content th, .gi-content td {
-    padding: var(--space-3) var(--space-4);
-    text-align: left;
-    border: 1px solid var(--gray-200);
-}
-
-.gi-content th {
-    background: var(--gray-50);
-    font-weight: 600;
-}
-
-/* ===================================
-   申請フロー
-   =================================== */
+/* 申請フロー */
 .gi-flow {
     display: flex;
     flex-direction: column;
@@ -1663,10 +1456,7 @@ body {
     line-height: var(--leading-relaxed);
 }
 
-/* ===================================
-   採択事例
-   社会的証明：他者の成功例
-   =================================== */
+/* 採択事例 */
 .gi-cases-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1709,9 +1499,7 @@ body {
     color: var(--accent-dark);
 }
 
-.gi-case-meta {
-    flex: 1;
-}
+.gi-case-meta { flex: 1; }
 
 .gi-case-industry {
     font-size: var(--text-sm);
@@ -1731,9 +1519,7 @@ body {
     line-height: var(--leading-relaxed);
 }
 
-/* ===================================
-   類似補助金比較
-   =================================== */
+/* 比較テーブル */
 .gi-compare-table {
     width: 100%;
     border-collapse: separate;
@@ -1761,9 +1547,7 @@ body {
     background: var(--gray-50);
 }
 
-.gi-compare-current {
-    background: var(--accent-light) !important;
-}
+.gi-compare-current { background: var(--accent-light) !important; }
 
 .gi-compare-current-header {
     background: var(--accent) !important;
@@ -1775,13 +1559,9 @@ body {
     text-decoration: none;
 }
 
-.gi-compare-link:hover {
-    text-decoration: underline;
-}
+.gi-compare-link:hover { text-decoration: underline; }
 
-/* ===================================
-   FAQ
-   =================================== */
+/* FAQ */
 .gi-faq-list {
     display: flex;
     flex-direction: column;
@@ -1795,13 +1575,8 @@ body {
     transition: var(--transition);
 }
 
-.gi-faq-item:hover {
-    border-color: var(--gray-300);
-}
-
-.gi-faq-item[open] {
-    border-color: var(--primary);
-}
+.gi-faq-item:hover { border-color: var(--gray-300); }
+.gi-faq-item[open] { border-color: var(--primary); }
 
 .gi-faq-question {
     display: flex;
@@ -1817,13 +1592,8 @@ body {
     transition: var(--transition);
 }
 
-.gi-faq-question::-webkit-details-marker {
-    display: none;
-}
-
-.gi-faq-question:hover {
-    background: var(--gray-25);
-}
+.gi-faq-question::-webkit-details-marker { display: none; }
+.gi-faq-question:hover { background: var(--gray-25); }
 
 .gi-faq-icon {
     width: 24px;
@@ -1832,9 +1602,7 @@ body {
     transition: transform 0.2s ease;
 }
 
-.gi-faq-item[open] .gi-faq-icon {
-    transform: rotate(45deg);
-}
+.gi-faq-item[open] .gi-faq-icon { transform: rotate(45deg); }
 
 .gi-faq-answer {
     padding: 0 var(--space-5) var(--space-5);
@@ -1843,9 +1611,7 @@ body {
     color: var(--gray-600);
 }
 
-/* ===================================
-   おすすめ補助金
-   =================================== */
+/* おすすめ補助金 */
 .gi-recommend-section {
     margin: var(--space-12) 0;
     padding: var(--space-12) 0;
@@ -1954,7 +1720,7 @@ body {
 }
 
 /* ===================================
-   CTA
+   CTA - 修正版（白文字）
    =================================== */
 .gi-cta {
     background: var(--primary);
@@ -1969,11 +1735,12 @@ body {
     font-size: var(--text-3xl);
     font-weight: 800;
     margin-bottom: var(--space-4);
+    color: var(--white); /* 明示的に白色指定 */
 }
 
 .gi-cta p {
     font-size: var(--text-lg);
-    color: var(--gray-300);
+    color: rgba(255, 255, 255, 0.8); /* 白の80%透明度 */
     margin-bottom: var(--space-8);
 }
 
@@ -1984,9 +1751,7 @@ body {
     flex-wrap: wrap;
 }
 
-/* ===================================
-   ボタン
-   =================================== */
+/* ボタン */
 .gi-btn {
     display: inline-flex;
     align-items: center;
@@ -2005,9 +1770,7 @@ body {
     min-height: 48px;
 }
 
-.gi-btn:focus-visible {
-    box-shadow: var(--focus-ring);
-}
+.gi-btn:focus-visible { box-shadow: var(--focus-ring); }
 
 .gi-btn-primary {
     background: var(--primary);
@@ -2071,9 +1834,7 @@ body {
     min-height: 56px;
 }
 
-.gi-btn-full {
-    width: 100%;
-}
+.gi-btn-full { width: 100%; }
 
 .gi-btn svg {
     width: 20px;
@@ -2081,10 +1842,7 @@ body {
     flex-shrink: 0;
 }
 
-/* ===================================
-   情報ソース・監修者
-   E-E-A-T対応
-   =================================== */
+/* 情報ソース・監修者 */
 .gi-source-card {
     background: var(--gray-50);
     border: 1px solid var(--gray-200);
@@ -2119,9 +1877,7 @@ body {
     text-decoration: none;
 }
 
-.gi-source-link:hover {
-    text-decoration: underline;
-}
+.gi-source-link:hover { text-decoration: underline; }
 
 .gi-supervisor-card {
     background: var(--white);
@@ -2164,9 +1920,7 @@ body {
     object-fit: cover;
 }
 
-.gi-supervisor-info {
-    flex: 1;
-}
+.gi-supervisor-info { flex: 1; }
 
 .gi-supervisor-name {
     font-size: var(--text-lg);
@@ -2188,9 +1942,7 @@ body {
     line-height: var(--leading-relaxed);
 }
 
-/* ===================================
-   サイドバー
-   =================================== */
+/* サイドバー */
 .gi-sidebar-card {
     background: var(--white);
     border: 1px solid var(--gray-200);
@@ -2228,9 +1980,7 @@ body {
     color: var(--accent-dark);
 }
 
-.gi-sidebar-body {
-    padding: var(--space-4);
-}
+.gi-sidebar-body { padding: var(--space-4); }
 
 /* TOC */
 .gi-toc-list {
@@ -2239,9 +1989,7 @@ body {
     margin: 0;
 }
 
-.gi-toc-item {
-    margin-bottom: 0;
-}
+.gi-toc-item { margin-bottom: 0; }
 
 .gi-toc-link {
     display: flex;
@@ -2275,13 +2023,8 @@ body {
     margin: 0;
 }
 
-.gi-sidebar-list-item {
-    border-bottom: 1px solid var(--gray-100);
-}
-
-.gi-sidebar-list-item:last-child {
-    border-bottom: none;
-}
+.gi-sidebar-list-item { border-bottom: 1px solid var(--gray-100); }
+.gi-sidebar-list-item:last-child { border-bottom: none; }
 
 .gi-sidebar-list-link {
     display: flex;
@@ -2292,9 +2035,7 @@ body {
     transition: var(--transition);
 }
 
-.gi-sidebar-list-link:hover {
-    background: var(--gray-50);
-}
+.gi-sidebar-list-link:hover { background: var(--gray-50); }
 
 .gi-sidebar-list-rank {
     width: 24px;
@@ -2310,20 +2051,9 @@ body {
     color: var(--gray-600);
 }
 
-.gi-sidebar-list-rank.gold {
-    background: var(--accent);
-    color: var(--gray-900);
-}
-
-.gi-sidebar-list-rank.silver {
-    background: var(--gray-300);
-    color: var(--gray-700);
-}
-
-.gi-sidebar-list-rank.bronze {
-    background: #CD7F32;
-    color: var(--white);
-}
+.gi-sidebar-list-rank.gold { background: var(--accent); color: var(--gray-900); }
+.gi-sidebar-list-rank.silver { background: var(--gray-300); color: var(--gray-700); }
+.gi-sidebar-list-rank.bronze { background: #CD7F32; color: var(--white); }
 
 .gi-sidebar-list-content {
     flex: 1;
@@ -2348,11 +2078,177 @@ body {
 }
 
 /* ===================================
-   モバイル固定ボタン
+   PC版AIアシスタント（サイドバー）
    =================================== */
-.gi-mobile-fixed {
-    display: none;
+.gi-ai-sidebar-card {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--gray-800) 100%);
+    border: none;
+    color: var(--white);
 }
+
+.gi-ai-sidebar-card .gi-sidebar-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gi-ai-sidebar-card .gi-sidebar-title {
+    color: var(--white);
+}
+
+.gi-ai-sidebar-card .gi-sidebar-title svg {
+    color: var(--accent);
+}
+
+.gi-ai-sidebar-body {
+    padding: var(--space-4);
+}
+
+.gi-ai-pc-messages {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.gi-ai-pc-message {
+    display: flex;
+    gap: var(--space-2);
+    max-width: 95%;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.gi-ai-pc-message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.gi-ai-pc-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    background: var(--accent);
+    color: var(--gray-900);
+}
+
+.gi-ai-pc-message.user .gi-ai-pc-avatar {
+    background: var(--gray-600);
+    color: var(--white);
+}
+
+.gi-ai-pc-bubble {
+    padding: var(--space-3);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--white);
+}
+
+.gi-ai-pc-message.user .gi-ai-pc-bubble {
+    background: var(--accent);
+    color: var(--gray-900);
+}
+
+.gi-ai-pc-input-wrapper {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.gi-ai-pc-input {
+    flex: 1;
+    padding: var(--space-3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    font-family: inherit;
+    resize: none;
+    min-height: 40px;
+    max-height: 80px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--white);
+    transition: var(--transition);
+}
+
+.gi-ai-pc-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.gi-ai-pc-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.gi-ai-pc-send {
+    width: 40px;
+    height: 40px;
+    background: var(--accent);
+    color: var(--gray-900);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.gi-ai-pc-send:hover:not(:disabled) {
+    background: var(--accent-dark);
+    color: var(--white);
+}
+
+.gi-ai-pc-send:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.gi-ai-pc-send svg {
+    width: 16px;
+    height: 16px;
+}
+
+.gi-ai-pc-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.gi-ai-pc-chip {
+    padding: var(--space-1) var(--space-3);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.gi-ai-pc-chip:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--gray-900);
+}
+
+/* モバイル固定ボタン */
+.gi-mobile-fixed { display: none; }
 
 @media (max-width: 1024px) {
     .gi-mobile-fixed {
@@ -2369,20 +2265,12 @@ body {
         box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
     }
     
-    .gi-mobile-fixed .gi-btn {
-        flex: 1;
-    }
-    
-    /* モバイル用余白調整 */
-    .gi-main {
-        padding-bottom: 100px;
-    }
+    .gi-mobile-fixed .gi-btn { flex: 1; }
+    .gi-main { padding-bottom: 100px; }
 }
 
 /* モバイルAIボタン */
-.gi-mobile-ai-btn {
-    display: none;
-}
+.gi-mobile-ai-btn { display: none; }
 
 @media (max-width: 1024px) {
     .gi-mobile-ai-btn {
@@ -2464,9 +2352,7 @@ body {
 
 @media (max-width: 1024px) {
     .gi-mobile-overlay,
-    .gi-mobile-panel {
-        display: block;
-    }
+    .gi-mobile-panel { display: block; }
 }
 
 .gi-mobile-panel-handle {
@@ -2505,9 +2391,7 @@ body {
     transition: var(--transition);
 }
 
-.gi-mobile-panel-close:hover {
-    background: var(--gray-200);
-}
+.gi-mobile-panel-close:hover { background: var(--gray-200); }
 
 .gi-mobile-panel-close svg {
     width: 20px;
@@ -2546,11 +2430,9 @@ body {
     overflow-y: auto;
 }
 
-.gi-mobile-content.active {
-    display: block;
-}
+.gi-mobile-content.active { display: block; }
 
-/* AIチャット */
+/* モバイルAIチャット */
 .gi-ai-messages {
     display: flex;
     flex-direction: column;
@@ -2565,11 +2447,6 @@ body {
     gap: var(--space-3);
     max-width: 85%;
     animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .gi-ai-message.user {
@@ -2698,41 +2575,20 @@ body {
     .gi-mobile-panel,
     .gi-progress,
     .gi-cta,
-    .gi-recommend-section {
-        display: none !important;
-    }
+    .gi-recommend-section { display: none !important; }
     
-    .gi-layout {
-        grid-template-columns: 1fr;
-    }
-    
-    .gi-main {
-        max-width: 100%;
-    }
-    
-    .gi-card {
-        break-inside: avoid;
-        border: 1px solid #000;
-    }
-    
-    .gi-hero-title {
-        font-size: 24pt;
-    }
-    
-    body {
-        font-size: 12pt;
-        line-height: 1.6;
-    }
+    .gi-layout { grid-template-columns: 1fr; }
+    .gi-main { max-width: 100%; }
+    .gi-card { break-inside: avoid; border: 1px solid #000; }
+    .gi-hero-title { font-size: 24pt; }
+    body { font-size: 12pt; line-height: 1.6; }
 }
 </style>
 
-<!-- スキップリンク -->
 <a href="#main-content" class="skip-link">メインコンテンツへスキップ</a>
 
-<!-- 読了進捗バー -->
 <div class="gi-progress" id="progressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="読了進捗"></div>
 
-<!-- パンくずリスト -->
 <nav class="gi-breadcrumb" aria-label="パンくずリスト">
     <ol class="gi-breadcrumb-list" itemscope itemtype="https://schema.org/BreadcrumbList">
         <?php foreach ($breadcrumbs as $index => $crumb): ?>
@@ -2753,7 +2609,6 @@ body {
 
 <div class="gi-container">
     <div class="gi-layout">
-        <!-- メインコンテンツ -->
         <main id="main-content" class="gi-main" role="main" itemscope itemtype="https://schema.org/Article">
             
             <!-- ヒーローエリア -->
@@ -2778,7 +2633,7 @@ body {
                 
                 <div class="gi-hero-meta">
                     <span class="gi-hero-meta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <polyline points="12 6 12 12 16 14"/>
                         </svg>
@@ -2786,7 +2641,7 @@ body {
                     </span>
                     
                     <span class="gi-hero-meta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                             <circle cx="12" cy="12" r="3"/>
                         </svg>
@@ -2799,26 +2654,20 @@ body {
                 </div>
             </header>
 
-            <!-- キーインフォ（最重要情報を視覚的に強調） -->
+            <!-- キーインフォ -->
             <section id="key-info" class="gi-key-info" aria-labelledby="key-info-title">
                 <h2 id="key-info-title" class="sr-only">重要情報</h2>
                 <div class="gi-key-info-grid">
-                    <!-- 金額 -->
                     <div class="gi-key-item">
                         <div class="gi-key-item-label">補助金額</div>
                         <div class="gi-key-item-value amount highlight">
-                            <?php if ($amount_display): ?>
-                                <?php echo esc_html($amount_display); ?>
-                            <?php else: ?>
-                                要確認
-                            <?php endif; ?>
+                            <?php echo $amount_display ?: '要確認'; ?>
                         </div>
                         <?php if ($subsidy_rate_display): ?>
                         <div class="gi-key-item-sub">補助率: <?php echo esc_html($subsidy_rate_display); ?></div>
                         <?php endif; ?>
                     </div>
                     
-                    <!-- 締切 -->
                     <div class="gi-key-item">
                         <div class="gi-key-item-label">申請締切</div>
                         <?php if ($days_remaining > 0): ?>
@@ -2836,14 +2685,13 @@ body {
                         <?php endif; ?>
                     </div>
                     
-                    <!-- 難易度 -->
                     <div class="gi-key-item">
                         <div class="gi-key-item-label">申請難易度</div>
                         <div class="gi-key-item-value"><?php echo $difficulty['label']; ?></div>
                         <div class="gi-key-item-sub">
                             <div class="gi-difficulty-stars" role="img" aria-label="難易度<?php echo $difficulty['stars']; ?>">
                                 <?php for ($i = 1; $i <= 5; $i++): ?>
-                                <svg class="gi-difficulty-star <?php echo $i <= $difficulty['stars'] ? 'active' : ''; ?>" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <svg class="gi-difficulty-star <?php echo $i <= $difficulty['stars'] ? 'active' : ''; ?>" viewBox="0 0 24 24" fill="currentColor">
                                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                 </svg>
                                 <?php endfor; ?>
@@ -2857,14 +2705,14 @@ body {
             <?php if ($grant['ai_summary']): ?>
             <section id="summary" class="gi-card gi-summary-card" aria-labelledby="summary-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                         <path d="M2 17l10 5 10-5"/>
                         <path d="M2 12l10 5 10-5"/>
                     </svg>
                     <h2 id="summary-title" class="gi-card-title">AI要約</h2>
                     <span class="gi-summary-badge">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 2v20M2 12h20"/>
                         </svg>
                         30秒で理解
@@ -2881,12 +2729,11 @@ body {
             <!-- 詳細情報テーブル -->
             <section id="details" class="gi-card" aria-labelledby="details-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                         <polyline points="14 2 14 8 20 8"/>
                         <line x1="16" y1="13" x2="8" y2="13"/>
                         <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10 9 9 9 8 9"/>
                     </svg>
                     <h2 id="details-title" class="gi-card-title">補助金詳細</h2>
                 </div>
@@ -2940,24 +2787,9 @@ body {
                                         <?php echo $municipality_display['html']; ?>
                                     </div>
                                     <?php endif; ?>
-                                    
-                                    <?php if ($grant['area_notes']): ?>
-                                    <div style="margin-top: var(--space-3); padding: var(--space-3); background: var(--gray-50); border-radius: var(--radius); font-size: var(--text-sm); color: var(--gray-600);">
-                                        <?php echo nl2br(esc_html($grant['area_notes'])); ?>
-                                    </div>
-                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
-                        
-                        <?php if (!empty($taxonomies['industries'])): ?>
-                        <div class="gi-table-row">
-                            <div class="gi-table-key">対象業種</div>
-                            <div class="gi-table-value">
-                                <?php echo $industry_display['html']; ?>
-                            </div>
-                        </div>
-                        <?php endif; ?>
                         
                         <?php if ($deadline_info): ?>
                         <div class="gi-table-row">
@@ -2972,13 +2804,6 @@ body {
                                 </span>
                                 <?php endif; ?>
                             </div>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($grant['application_period']): ?>
-                        <div class="gi-table-row">
-                            <div class="gi-table-key">申請期間</div>
-                            <div class="gi-table-value"><?php echo nl2br(esc_html($grant['application_period'])); ?></div>
                         </div>
                         <?php endif; ?>
                         
@@ -3009,23 +2834,14 @@ body {
                         </div>
                         <?php endif; ?>
                         
-                        <?php if ($grant['ineligible_expenses']): ?>
-                        <div class="gi-table-row">
-                            <div class="gi-table-key">対象外経費</div>
-                            <div class="gi-table-value" style="color: var(--gray-500);">
-                                <?php echo wp_kses_post($grant['ineligible_expenses']); ?>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-                        
                         <div class="gi-table-row">
                             <div class="gi-table-key">申請難易度</div>
                             <div class="gi-table-value">
                                 <div class="gi-difficulty">
                                     <span class="gi-difficulty-label"><?php echo $difficulty['label']; ?></span>
-                                    <div class="gi-difficulty-stars" role="img" aria-label="難易度<?php echo $difficulty['stars']; ?>">
+                                    <div class="gi-difficulty-stars">
                                         <?php for ($i = 1; $i <= 5; $i++): ?>
-                                        <svg class="gi-difficulty-star <?php echo $i <= $difficulty['stars'] ? 'active' : ''; ?>" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <svg class="gi-difficulty-star <?php echo $i <= $difficulty['stars'] ? 'active' : ''; ?>" viewBox="0 0 24 24" fill="currentColor">
                                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                         </svg>
                                         <?php endfor; ?>
@@ -3042,33 +2858,7 @@ body {
                                 <span class="gi-value-highlight gi-value-success" style="font-weight: 700;">
                                     <?php echo number_format($grant['adoption_rate'], 1); ?>%
                                 </span>
-                                <?php if ($grant['adoption_count'] > 0 && $grant['application_count'] > 0): ?>
-                                <span style="margin-left: var(--space-2); font-size: var(--text-sm); color: var(--gray-500);">
-                                    （<?php echo number_format($grant['adoption_count']); ?>件/<?php echo number_format($grant['application_count']); ?>件）
-                                </span>
-                                <?php endif; ?>
                             </div>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($grant['preparation_time']): ?>
-                        <div class="gi-table-row">
-                            <div class="gi-table-key">準備期間目安</div>
-                            <div class="gi-table-value"><?php echo esc_html($grant['preparation_time']); ?></div>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($grant['review_period']): ?>
-                        <div class="gi-table-row">
-                            <div class="gi-table-key">審査期間目安</div>
-                            <div class="gi-table-value"><?php echo esc_html($grant['review_period']); ?></div>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($grant['application_method']): ?>
-                        <div class="gi-table-row">
-                            <div class="gi-table-key">申請方法</div>
-                            <div class="gi-table-value"><?php echo wp_kses_post($grant['application_method']); ?></div>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -3078,7 +2868,7 @@ body {
             <!-- 申請チェックリスト -->
             <section id="checklist" class="gi-card gi-checklist-card" aria-labelledby="checklist-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 11l3 3L22 4"/>
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                     </svg>
@@ -3096,7 +2886,7 @@ body {
                     <?php foreach ($checklist_items as $item): ?>
                     <li class="gi-checklist-item" data-id="<?php echo $item['id']; ?>">
                         <div class="gi-checklist-checkbox" role="checkbox" aria-checked="false" tabindex="0">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </div>
@@ -3120,7 +2910,7 @@ body {
             <!-- 補助金概要（本文） -->
             <section id="content" class="gi-card" aria-labelledby="content-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                         <polyline points="14 2 14 8 20 8"/>
                     </svg>
@@ -3137,7 +2927,7 @@ body {
             <?php if ($grant['application_flow']): ?>
             <section id="flow" class="gi-card" aria-labelledby="flow-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <polyline points="19 12 12 19 5 12"/>
                     </svg>
@@ -3151,7 +2941,6 @@ body {
                         foreach ($flow_steps as $step):
                             $step = trim($step);
                             if (empty($step)) continue;
-					                            // タイトルと説明を分離（「:」または「：」で区切り）
                             $parts = preg_split('/[:：]/', $step, 2);
                             $step_title = trim($parts[0]);
                             $step_desc = isset($parts[1]) ? trim($parts[1]) : '';
@@ -3178,7 +2967,7 @@ body {
             <?php if ($grant['application_tips']): ?>
             <section id="tips" class="gi-card" aria-labelledby="tips-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
                     </svg>
                     <h2 id="tips-title" class="gi-card-title">申請のコツ・ポイント</h2>
@@ -3191,30 +2980,11 @@ body {
             </section>
             <?php endif; ?>
 
-            <!-- よくある失敗例 -->
-            <?php if ($grant['common_mistakes']): ?>
-            <section class="gi-card" aria-labelledby="mistakes-title">
-                <div class="gi-card-header" style="background: var(--error-light); border-bottom-color: var(--error);">
-                    <svg class="gi-card-icon" style="color: var(--error);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="15" y1="9" x2="9" y2="15"/>
-                        <line x1="9" y1="9" x2="15" y2="15"/>
-                    </svg>
-                    <h2 id="mistakes-title" class="gi-card-title">よくある失敗例・注意点</h2>
-                </div>
-                <div class="gi-card-body">
-                    <div class="gi-content">
-                        <?php echo wp_kses_post($grant['common_mistakes']); ?>
-                    </div>
-                </div>
-            </section>
-            <?php endif; ?>
-
             <!-- 採択事例 -->
             <?php if (!empty($grant['success_cases'])): ?>
             <section id="cases" class="gi-card" aria-labelledby="cases-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                         <circle cx="9" cy="7" r="4"/>
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
@@ -3228,7 +2998,7 @@ body {
                         <article class="gi-case-card">
                             <div class="gi-case-header">
                                 <div class="gi-case-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                                         <polyline points="22 4 12 14.01 9 11.01"/>
                                     </svg>
@@ -3245,21 +3015,17 @@ body {
                             <?php if (!empty($case['purpose'])): ?>
                             <p class="gi-case-purpose"><?php echo esc_html($case['purpose']); ?></p>
                             <?php endif; ?>
-                            <?php if (!empty($case['description'])): ?>
-                            <p class="gi-case-purpose" style="margin-top: var(--space-2);"><?php echo esc_html($case['description']); ?></p>
-                            <?php endif; ?>
                         </article>
                         <?php endforeach; ?>
                     </div>
                 </div>
             </section>
             <?php endif; ?>
-
-            <!-- 類似補助金比較 -->
+			            <!-- 類似補助金比較 -->
             <?php if (!empty($similar_grants)): ?>
             <section id="compare" class="gi-card" aria-labelledby="compare-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="20" x2="18" y2="10"/>
                         <line x1="12" y1="20" x2="12" y2="4"/>
                         <line x1="6" y1="20" x2="6" y2="14"/>
@@ -3323,7 +3089,7 @@ body {
             <!-- FAQ -->
             <section id="faq" class="gi-card" aria-labelledby="faq-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"/>
                         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                         <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -3336,7 +3102,7 @@ body {
                         <details class="gi-faq-item">
                             <summary class="gi-faq-question">
                                 <span>この補助金の対象者は誰ですか？</span>
-                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
@@ -3354,7 +3120,7 @@ body {
                         <details class="gi-faq-item">
                             <summary class="gi-faq-question">
                                 <span>申請に必要な書類は何ですか？</span>
-                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
@@ -3372,7 +3138,7 @@ body {
                         <details class="gi-faq-item">
                             <summary class="gi-faq-question">
                                 <span>どのような経費が対象になりますか？</span>
-                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
@@ -3386,7 +3152,7 @@ body {
                         <details class="gi-faq-item">
                             <summary class="gi-faq-question">
                                 <span>申請から採択までどのくらいかかりますか？</span>
-                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
@@ -3403,7 +3169,7 @@ body {
                         <details class="gi-faq-item">
                             <summary class="gi-faq-question">
                                 <span>不採択になった場合、再申請は可能ですか？</span>
-                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
@@ -3416,7 +3182,7 @@ body {
                         <details class="gi-faq-item">
                             <summary class="gi-faq-question">
                                 <span>専門家に相談した方がいいですか？</span>
-                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <svg class="gi-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
@@ -3437,7 +3203,7 @@ body {
             <?php if ($grant['contact_info'] || $grant['contact_phone'] || $grant['contact_email']): ?>
             <section id="contact" class="gi-card" aria-labelledby="contact-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                     </svg>
                     <h2 id="contact-title" class="gi-card-title">お問い合わせ先</h2>
@@ -3452,7 +3218,7 @@ body {
                         
                         <?php if ($grant['contact_phone']): ?>
                         <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                             </svg>
                             <a href="tel:<?php echo esc_attr(preg_replace('/[^0-9]/', '', $grant['contact_phone'])); ?>" style="font-weight: 700; color: var(--primary); text-decoration: none;">
@@ -3463,7 +3229,7 @@ body {
                         
                         <?php if ($grant['contact_email']): ?>
                         <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                                 <polyline points="22,6 12,13 2,6"/>
                             </svg>
@@ -3480,7 +3246,7 @@ body {
             <!-- 情報ソース・監修者（E-E-A-T対応） -->
             <div class="gi-source-card">
                 <div class="gi-source-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     <span>情報ソース・更新情報</span>
@@ -3491,7 +3257,7 @@ body {
                         <?php if ($source_url): ?>
                         <a href="<?php echo esc_url($source_url); ?>" class="gi-source-link" target="_blank" rel="noopener noreferrer">
                             <?php echo esc_html($source_name ?: '公式サイト'); ?>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle;" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle;">
                                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                                 <polyline points="15 3 21 3 21 9"/>
                                 <line x1="10" y1="14" x2="21" y2="3"/>
@@ -3511,7 +3277,7 @@ body {
             <!-- 監修者情報 -->
             <div class="gi-supervisor-card">
                 <div class="gi-supervisor-header">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
                     <span>監修・編集</span>
@@ -3521,7 +3287,7 @@ body {
                         <?php if ($grant['supervisor_image']): ?>
                         <img src="<?php echo esc_url($grant['supervisor_image']['url']); ?>" alt="<?php echo esc_attr($grant['supervisor_name']); ?>">
                         <?php else: ?>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 100%; height: 100%; padding: 20px; color: var(--gray-400);" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 100%; height: 100%; padding: 20px; color: var(--gray-400);">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                             <circle cx="12" cy="7" r="4"/>
                         </svg>
@@ -3579,7 +3345,7 @@ body {
             <?php if ($related_columns->have_posts()): ?>
             <aside class="gi-card" aria-labelledby="columns-title">
                 <div class="gi-card-header">
-                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="gi-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                     </svg>
@@ -3602,20 +3368,20 @@ body {
             </aside>
             <?php endif; ?>
 
-            <!-- CTA -->
+            <!-- CTA（白文字修正版） -->
             <aside class="gi-cta" aria-labelledby="cta-title">
                 <h2 id="cta-title">他にもあなたに合う補助金があるかもしれません</h2>
                 <p>AIで最適な補助金を無料診断</p>
                 <div class="gi-cta-buttons">
                     <a href="<?php echo home_url('/subsidy-diagnosis/'); ?>" class="gi-btn gi-btn-white gi-btn-lg">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 11l3 3L22 4"/>
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                         </svg>
                         無料AI診断を受ける
                     </a>
                     <a href="<?php echo home_url('/grants/'); ?>" class="gi-btn gi-btn-outline-white gi-btn-lg">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"/>
                             <path d="m21 21-4.35-4.35"/>
                         </svg>
@@ -3629,11 +3395,47 @@ body {
         <!-- サイドバー（PCのみ） -->
         <aside class="gi-sidebar" role="complementary" aria-label="サイドバー">
             
+            <!-- PC版AIアシスタント -->
+            <div class="gi-sidebar-card gi-ai-sidebar-card">
+                <div class="gi-sidebar-header">
+                    <h3 class="gi-sidebar-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        AIアシスタント
+                    </h3>
+                </div>
+                <div class="gi-ai-sidebar-body">
+                    <div class="gi-ai-pc-messages" id="pcAiMessages">
+                        <div class="gi-ai-pc-message">
+                            <div class="gi-ai-pc-avatar">AI</div>
+                            <div class="gi-ai-pc-bubble">
+                                この補助金について質問があればお気軽にどうぞ！
+                            </div>
+                        </div>
+                    </div>
+                    <div class="gi-ai-pc-input-wrapper">
+                        <textarea class="gi-ai-pc-input" id="pcAiInput" placeholder="質問を入力..." rows="1"></textarea>
+                        <button class="gi-ai-pc-send" id="pcAiSend" type="button" aria-label="送信">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="gi-ai-pc-suggestions">
+                        <button class="gi-ai-pc-chip" data-q="申請条件を教えて" type="button">申請条件</button>
+                        <button class="gi-ai-pc-chip" data-q="必要書類は？" type="button">必要書類</button>
+                        <button class="gi-ai-pc-chip" data-q="対象経費は？" type="button">対象経費</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- アクションボタン -->
             <div class="gi-sidebar-card">
                 <div class="gi-sidebar-body" style="display: flex; flex-direction: column; gap: var(--space-3);">
                     <a href="<?php echo home_url('/subsidy-diagnosis/'); ?>" class="gi-btn gi-btn-accent gi-btn-full">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 11l3 3L22 4"/>
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                         </svg>
@@ -3641,7 +3443,7 @@ body {
                     </a>
                     <?php if ($grant['official_url']): ?>
                     <a href="<?php echo esc_url($grant['official_url']); ?>" class="gi-btn gi-btn-primary gi-btn-full" target="_blank" rel="noopener noreferrer">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                             <polyline points="15 3 21 3 21 9"/>
                             <line x1="10" y1="14" x2="21" y2="3"/>
@@ -3650,7 +3452,7 @@ body {
                     </a>
                     <?php endif; ?>
                     <button class="gi-btn gi-btn-secondary gi-btn-full" id="bookmarkBtn" type="button">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                         </svg>
                         保存する
@@ -3662,7 +3464,7 @@ body {
             <nav class="gi-sidebar-card" aria-labelledby="sidebar-toc-title">
                 <div class="gi-sidebar-header">
                     <h3 id="sidebar-toc-title" class="gi-sidebar-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="8" y1="6" x2="21" y2="6"/>
                             <line x1="8" y1="12" x2="21" y2="12"/>
                             <line x1="8" y1="18" x2="21" y2="18"/>
@@ -3689,7 +3491,7 @@ body {
             <section class="gi-sidebar-card" aria-labelledby="sidebar-deadline-title">
                 <div class="gi-sidebar-header">
                     <h3 id="sidebar-deadline-title" class="gi-sidebar-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <polyline points="12 6 12 12 16 14"/>
                         </svg>
@@ -3724,7 +3526,7 @@ body {
             <section class="gi-sidebar-card" aria-labelledby="sidebar-ranking-title">
                 <div class="gi-sidebar-header">
                     <h3 id="sidebar-ranking-title" class="gi-sidebar-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                         </svg>
                         人気ランキング
@@ -3764,7 +3566,7 @@ body {
             <nav class="gi-sidebar-card" aria-labelledby="sidebar-category-title">
                 <div class="gi-sidebar-header">
                     <h3 id="sidebar-category-title" class="gi-sidebar-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                         </svg>
                         関連カテゴリ
@@ -3784,21 +3586,11 @@ body {
     </div>
 </div>
 
-<!-- モバイル固定ボタン -->
-<div class="gi-mobile-fixed">
-    <a href="<?php echo home_url('/subsidy-diagnosis/'); ?>" class="gi-btn gi-btn-accent">
-        AI診断
-    </a>
-    <?php if ($grant['official_url']): ?>
-    <a href="<?php echo esc_url($grant['official_url']); ?>" class="gi-btn gi-btn-primary" target="_blank" rel="noopener noreferrer">
-        公式サイト
-    </a>
-    <?php endif; ?>
-</div>
+
 
 <!-- モバイルAIボタン -->
 <button class="gi-mobile-ai-btn" id="mobileAiBtn" type="button" aria-label="AIアシスタントを開く">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
     <span class="gi-mobile-ai-btn-text">AI相談</span>
@@ -3813,7 +3605,7 @@ body {
     <div class="gi-mobile-panel-header">
         <h2 id="mobilePanelTitle" class="gi-mobile-panel-title">AIアシスタント</h2>
         <button class="gi-mobile-panel-close" id="mobilePanelClose" type="button" aria-label="閉じる">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -3839,7 +3631,7 @@ body {
         <div class="gi-ai-input-wrapper">
             <textarea class="gi-ai-input" id="mobileAiInput" placeholder="質問を入力..." rows="1" aria-label="質問を入力"></textarea>
             <button class="gi-ai-send" id="mobileAiSend" type="button" aria-label="送信">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="22" y1="2" x2="11" y2="13"/>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                 </svg>
@@ -3940,7 +3732,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // ローカルストレージに保存
         const checkedIds = [];
         document.querySelectorAll('.gi-checklist-item.checked').forEach(function(item) {
             checkedIds.push(item.dataset.id);
@@ -3948,7 +3739,6 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('gi_checklist_<?php echo $post_id; ?>', JSON.stringify(checkedIds));
     }
     
-    // 保存されたチェック状態を復元
     const savedChecks = localStorage.getItem('gi_checklist_<?php echo $post_id; ?>');
     if (savedChecks) {
         try {
@@ -4008,7 +3798,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     behavior: 'smooth'
                 });
                 
-                // モバイルパネルを閉じる
                 if (link.classList.contains('mobile-toc-link')) {
                     closeMobilePanel();
                 }
@@ -4016,7 +3805,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Intersection Observer for TOC
     const observerOptions = {
         root: null,
         rootMargin: '-20% 0px -60% 0px',
@@ -4122,7 +3910,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (navigator.share) {
                 navigator.share(shareData).catch(function() {});
             } else {
-                // フォールバック：URLをコピー
                 navigator.clipboard.writeText(shareData.url).then(function() {
                     alert('URLをコピーしました');
                 }).catch(function() {});
@@ -4162,14 +3949,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (mobilePanelClose) mobilePanelClose.addEventListener('click', closeMobilePanel);
     if (mobileOverlay) mobileOverlay.addEventListener('click', closeMobilePanel);
     
-    // ESCキーで閉じる
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && mobilePanel && mobilePanel.classList.contains('active')) {
             closeMobilePanel();
         }
     });
     
-    // タブ切り替え
     mobileTabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
             const targetTab = this.dataset.tab;
@@ -4191,65 +3976,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // ===================================
-    // AIチャット
+    // AIチャット共通関数
     // ===================================
-    const mobileAiInput = document.getElementById('mobileAiInput');
-    const mobileAiSend = document.getElementById('mobileAiSend');
-    const mobileAiMessages = document.getElementById('mobileAiMessages');
-    const aiChips = document.querySelectorAll('.gi-ai-chip');
-    
-    // 入力欄の自動リサイズ
-    if (mobileAiInput) {
-        mobileAiInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-        });
-    }
-    
-    function addMessage(content, type) {
-        const msg = document.createElement('div');
-        msg.className = 'gi-ai-message ' + type;
-        msg.innerHTML = `
-            <div class="gi-ai-avatar">${type === 'user' ? 'U' : 'AI'}</div>
-            <div class="gi-ai-bubble">${content.replace(/\n/g, '<br>')}</div>
-        `;
-        if (mobileAiMessages) {
-            mobileAiMessages.appendChild(msg);
-            mobileAiMessages.scrollTop = mobileAiMessages.scrollHeight;
-        }
-    }
-    
-    function showTyping() {
-        const typing = document.createElement('div');
-        typing.className = 'gi-ai-message';
-        typing.id = 'aiTyping';
-        typing.innerHTML = `
-            <div class="gi-ai-avatar">AI</div>
-            <div class="gi-ai-bubble">入力中...</div>
-        `;
-        if (mobileAiMessages) {
-            mobileAiMessages.appendChild(typing);
-            mobileAiMessages.scrollTop = mobileAiMessages.scrollHeight;
-        }
-    }
-    
-    function removeTyping() {
-        const typing = document.getElementById('aiTyping');
-        if (typing) typing.remove();
-    }
-    
-    async function sendQuestion() {
-        if (!mobileAiInput) return;
-        
-        const question = mobileAiInput.value.trim();
+    async function sendAiQuestion(input, messagesContainer, sendBtn, type) {
+        const question = input.value.trim();
         if (!question) return;
         
-        addMessage(question, 'user');
-        mobileAiInput.value = '';
-        mobileAiInput.style.height = 'auto';
-        if (mobileAiSend) mobileAiSend.disabled = true;
+        addMessage(messagesContainer, question, 'user', type);
+        input.value = '';
+        if (type === 'mobile') input.style.height = 'auto';
+        sendBtn.disabled = true;
         
-        showTyping();
+        const typingId = showTyping(messagesContainer, type);
         
         try {
             const formData = new FormData();
@@ -4265,39 +4003,141 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const data = await response.json();
             
-            removeTyping();
+            removeTyping(typingId);
             
             if (data.success && data.data && data.data.answer) {
-                addMessage(data.data.answer, 'assistant');
+                addMessage(messagesContainer, data.data.answer, 'assistant', type);
             } else {
-                addMessage('申し訳ございません。回答の生成に失敗しました。ページ内の情報をご確認いただくか、公式サイトにお問い合わせください。', 'assistant');
+                addMessage(messagesContainer, '申し訳ございません。回答の生成に失敗しました。ページ内の情報をご確認いただくか、公式サイトにお問い合わせください。', 'assistant', type);
             }
         } catch (error) {
-            removeTyping();
-            addMessage('通信エラーが発生しました。しばらく経ってから再度お試しください。', 'assistant');
+            removeTyping(typingId);
+            addMessage(messagesContainer, '通信エラーが発生しました。しばらく経ってから再度お試しください。', 'assistant', type);
         } finally {
-            if (mobileAiSend) mobileAiSend.disabled = false;
+            sendBtn.disabled = false;
         }
     }
     
-    if (mobileAiSend) {
-        mobileAiSend.addEventListener('click', sendQuestion);
+    function addMessage(container, content, msgType, uiType) {
+        const msg = document.createElement('div');
+        
+        if (uiType === 'pc') {
+            msg.className = 'gi-ai-pc-message ' + msgType;
+            msg.innerHTML = `
+                <div class="gi-ai-pc-avatar">${msgType === 'user' ? 'U' : 'AI'}</div>
+                <div class="gi-ai-pc-bubble">${content.replace(/\n/g, '<br>')}</div>
+            `;
+        } else {
+            msg.className = 'gi-ai-message ' + msgType;
+            msg.innerHTML = `
+                <div class="gi-ai-avatar">${msgType === 'user' ? 'U' : 'AI'}</div>
+                <div class="gi-ai-bubble">${content.replace(/\n/g, '<br>')}</div>
+            `;
+        }
+        
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
     }
     
+    function showTyping(container, uiType) {
+        const typing = document.createElement('div');
+        const typingId = 'typing_' + Date.now();
+        typing.id = typingId;
+        
+        if (uiType === 'pc') {
+            typing.className = 'gi-ai-pc-message';
+            typing.innerHTML = `
+                <div class="gi-ai-pc-avatar">AI</div>
+                <div class="gi-ai-pc-bubble">入力中...</div>
+            `;
+        } else {
+            typing.className = 'gi-ai-message';
+            typing.innerHTML = `
+                <div class="gi-ai-avatar">AI</div>
+                <div class="gi-ai-bubble">入力中...</div>
+            `;
+        }
+        
+        container.appendChild(typing);
+        container.scrollTop = container.scrollHeight;
+        return typingId;
+    }
+    
+    function removeTyping(id) {
+        const typing = document.getElementById(id);
+        if (typing) typing.remove();
+    }
+    
+    // ===================================
+    // モバイルAIチャット
+    // ===================================
+    const mobileAiInput = document.getElementById('mobileAiInput');
+    const mobileAiSend = document.getElementById('mobileAiSend');
+    const mobileAiMessages = document.getElementById('mobileAiMessages');
+    const mobileAiChips = document.querySelectorAll('.gi-mobile-panel .gi-ai-chip');
+    
     if (mobileAiInput) {
+        mobileAiInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        });
+    }
+    
+    if (mobileAiSend && mobileAiInput && mobileAiMessages) {
+        mobileAiSend.addEventListener('click', function() {
+            sendAiQuestion(mobileAiInput, mobileAiMessages, mobileAiSend, 'mobile');
+        });
+        
         mobileAiInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                sendQuestion();
+                sendAiQuestion(mobileAiInput, mobileAiMessages, mobileAiSend, 'mobile');
             }
         });
     }
     
-    aiChips.forEach(function(chip) {
+    mobileAiChips.forEach(function(chip) {
         chip.addEventListener('click', function() {
             if (mobileAiInput) {
                 mobileAiInput.value = this.dataset.q;
-                sendQuestion();
+                sendAiQuestion(mobileAiInput, mobileAiMessages, mobileAiSend, 'mobile');
+            }
+        });
+    });
+    
+    // ===================================
+    // PC版AIチャット
+    // ===================================
+    const pcAiInput = document.getElementById('pcAiInput');
+    const pcAiSend = document.getElementById('pcAiSend');
+    const pcAiMessages = document.getElementById('pcAiMessages');
+    const pcAiChips = document.querySelectorAll('.gi-ai-pc-chip');
+    
+    if (pcAiInput) {
+        pcAiInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+        });
+    }
+    
+    if (pcAiSend && pcAiInput && pcAiMessages) {
+        pcAiSend.addEventListener('click', function() {
+            sendAiQuestion(pcAiInput, pcAiMessages, pcAiSend, 'pc');
+        });
+        
+        pcAiInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendAiQuestion(pcAiInput, pcAiMessages, pcAiSend, 'pc');
+            }
+        });
+    }
+    
+    pcAiChips.forEach(function(chip) {
+        chip.addEventListener('click', function() {
+            if (pcAiInput) {
+                pcAiInput.value = this.dataset.q;
+                sendAiQuestion(pcAiInput, pcAiMessages, pcAiSend, 'pc');
             }
         });
     });
