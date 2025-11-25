@@ -1030,65 +1030,91 @@ class GoogleSheetsSync {
     
     /**
      * スプレッドシートからWordPressへの同期（バッチ処理強化版）
+     * 改善版: 10件で止まる問題を修正
      */
     public function sync_sheets_to_wp() {
-        try {
-            gi_log_error('Starting sync_sheets_to_wp with enhanced batch processing');
-            
-            // メモリとタイムアウトを拡張
-            @ini_set('memory_limit', '512M');
-            @set_time_limit(600); // 10分
-            
-            $sheet_data = $this->read_sheet_data();
-            if (empty($sheet_data)) {
-                gi_log_error('No sheet data found');
-                return 0;
+        gi_log_error('Starting sync_sheets_to_wp with enhanced batch processing');
+        
+        // メモリとタイムアウトを拡張
+        @ini_set('memory_limit', '1024M');
+        @set_time_limit(900); // 15分
+        
+        // WordPress内部キャッシュを無効化（メモリ節約）
+        wp_suspend_cache_addition(true);
+        
+        $sheet_data = $this->read_sheet_data();
+        if (empty($sheet_data)) {
+            gi_log_error('No sheet data found');
+            wp_suspend_cache_addition(false);
+            return 0;
+        }
+        
+        $total_rows_with_header = count($sheet_data);
+        gi_log_error('Sheet data retrieved', array('row_count' => $total_rows_with_header));
+        
+        $headers = array_shift($sheet_data); // ヘッダー行を除去
+        $synced_count = 0;
+        $skipped_count = 0;
+        $error_count = 0;
+        $new_post_ids_to_update = array(); // 新規作成された投稿のIDと行番号を記録
+        
+        $total_rows = count($sheet_data);
+        gi_log_error('Starting import', array('total_data_rows' => $total_rows));
+        
+        // 各行を順番に処理
+        foreach ($sheet_data as $row_index => $row) {
+            // 進捗ログ（50件ごと）
+            if (($row_index + 1) % 50 === 0) {
+                gi_log_error('Import progress', array(
+                    'current' => $row_index + 1,
+                    'total' => $total_rows,
+                    'synced' => $synced_count,
+                    'skipped' => $skipped_count,
+                    'errors' => $error_count,
+                    'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . 'MB'
+                ));
+                
+                // メモリをクリア（50件ごと）
+                wp_cache_flush();
+                gc_collect_cycles();
             }
             
-            gi_log_error('Sheet data retrieved', array('row_count' => count($sheet_data)));
-            
-            $headers = array_shift($sheet_data); // ヘッダー行を除去
-            $synced_count = 0;
-            $new_post_ids_to_update = array(); // 新規作成された投稿のIDと行番号を記録
-            $batch_size = 20; // バッチサイズ（一度に処理する行数）
-            $batch_count = 0;
-            
-            // バッチ処理で確実にインポート
-            $total_rows = count($sheet_data);
-            gi_log_error('Starting batch import', array('total_rows' => $total_rows, 'batch_size' => $batch_size));
-        
-        foreach ($sheet_data as $row_index => $row) {
             try {
+                // 空行または不完全な行をスキップ
                 if (empty($row) || count($row) < 2) {
-                    gi_log_error('Skipping incomplete row', array('row_index' => $row_index));
-                    continue; // 不完全な行をスキップ
-                }
-                
-                $original_post_id = intval($row[0]); // 元のpost_id（空の場合は0）
-                $post_id = $original_post_id;
-                $title = isset($row[1]) ? sanitize_text_field($row[1]) : '';
-                
-                if (empty($title)) {
-                    gi_log_error('Skipping row with empty title', array('row_index' => $row_index));
+                    $skipped_count++;
                     continue;
                 }
                 
-                // HTML/CSS完全版を保持（管理者権限でのインポートなのでフィルタリングなし）
+                $original_post_id = !empty($row[0]) ? intval($row[0]) : 0;
+                $post_id = $original_post_id;
+                $title = isset($row[1]) ? trim(sanitize_text_field($row[1])) : '';
+                
+                // タイトルが空の場合はスキップ
+                if (empty($title)) {
+                    $skipped_count++;
+                    continue;
+                }
+                
+                // データを取得
                 $content = isset($row[2]) ? $row[2] : '';
                 $excerpt = isset($row[3]) ? sanitize_textarea_field($row[3]) : '';
                 $status = isset($row[4]) ? sanitize_text_field($row[4]) : 'draft';
+                
+                // 有効なステータスのみ許可
+                $valid_statuses = array('draft', 'publish', 'private', 'pending', 'deleted');
+                if (!in_array($status, $valid_statuses)) {
+                    $status = 'draft';
+                }
                 
                 // 削除されたアイテムの処理
                 if ($status === 'deleted') {
                     if ($post_id && get_post($post_id)) {
                         wp_delete_post($post_id, true);
                         $synced_count++;
-                        gi_log_error('Deleted post', array('post_id' => $post_id));
                     }
                     continue;
                 }
-                
-                $was_new_post = false; // 新規投稿かどうかのフラグ
                 
                 // タイトル重複チェック：B列タイトルで既存投稿を検索
                 $existing_post_by_title = null;
@@ -1099,15 +1125,13 @@ class GoogleSheetsSync {
                         'post_status' => array('publish', 'draft', 'private', 'pending'),
                         'title' => $title,
                         'posts_per_page' => 1,
-                        'fields' => 'ids'
+                        'fields' => 'ids',
+                        'suppress_filters' => true,
+                        'no_found_rows' => true
                     ));
                     
                     if (!empty($existing_posts)) {
                         $existing_post_by_title = $existing_posts[0];
-                        gi_log_error('Found existing post by title', array(
-                            'title' => $title,
-                            'existing_post_id' => $existing_post_by_title
-                        ));
                     }
                 }
                 
@@ -1122,8 +1146,15 @@ class GoogleSheetsSync {
                         'post_status' => $status,
                     );
                     
-                    wp_update_post($updated_post);
-                    gi_log_error('Updated existing post by ID', array('post_id' => $post_id, 'title' => $title));
+                    $result = wp_update_post($updated_post, true);
+                    if (is_wp_error($result)) {
+                        gi_log_error('Failed to update post', array(
+                            'post_id' => $post_id,
+                            'error' => $result->get_error_message()
+                        ));
+                        $error_count++;
+                        continue;
+                    }
                     
                 } elseif ($existing_post_by_title) {
                     // タイトルで既存投稿が見つかった場合：上書き
@@ -1136,17 +1167,15 @@ class GoogleSheetsSync {
                         'post_status' => $status,
                     );
                     
-                    wp_update_post($updated_post);
+                    $result = wp_update_post($updated_post, true);
+                    if (is_wp_error($result)) {
+                        $error_count++;
+                        continue;
+                    }
                     
                     // A列のIDを更新するために記録
                     $sheet_row_number = $row_index + 2;
                     $new_post_ids_to_update[$sheet_row_number] = $post_id;
-                    
-                    gi_log_error('Overwritten existing post by title', array(
-                        'post_id' => $post_id,
-                        'title' => $title,
-                        'sheet_row' => $sheet_row_number
-                    ));
                     
                 } else {
                     // 新規投稿を作成
@@ -1158,32 +1187,27 @@ class GoogleSheetsSync {
                         'post_type' => 'grant'
                     );
                     
-                    $post_id = wp_insert_post($new_post);
-                    $was_new_post = true;
+                    $post_id = wp_insert_post($new_post, true);
                     
-                    if ($post_id && !is_wp_error($post_id)) {
-                        // 新規投稿が作成されたので、後でスプレッドシートのA列を更新する必要がある
-                        $sheet_row_number = $row_index + 2; // ヘッダー行を考慮して+2（配列は0ベース、Sheetsは1ベース+ヘッダー）
-                        $new_post_ids_to_update[$sheet_row_number] = $post_id;
-                        gi_log_error('Created new post, will update spreadsheet', array(
-                            'post_id' => $post_id, 
-                            'title' => $title, 
-                            'sheet_row' => $sheet_row_number
+                    if (is_wp_error($post_id)) {
+                        gi_log_error('Failed to create post', array(
+                            'title' => $title,
+                            'error' => $post_id->get_error_message()
                         ));
+                        $error_count++;
+                        continue;
                     }
+                    
+                    // 新規投稿が作成されたので、後でスプレッドシートのA列を更新する必要がある
+                    $sheet_row_number = $row_index + 2;
+                    $new_post_ids_to_update[$sheet_row_number] = $post_id;
                 }
                 
-                // バッチ処理カウント
-                $batch_count++;
-                if ($batch_count % $batch_size === 0) {
-                    gi_log_error('Batch progress', array(
-                        'processed' => $batch_count,
-                        'total' => $total_rows,
-                        'percentage' => round(($batch_count / $total_rows) * 100, 2)
-                    ));
-                    
-                    // メモリをクリア
-                    wp_cache_flush();
+                // ACFフィールドを更新（タクソノミー化されたフィールドは除外）
+                if ($post_id && !is_wp_error($post_id)) {
+                    $this->update_post_acf_fields($post_id, $row);
+                    $this->update_post_taxonomies($post_id, $row);
+                    $synced_count++;
                 }
                 
             } catch (Exception $e) {
@@ -1191,164 +1215,145 @@ class GoogleSheetsSync {
                     'row_index' => $row_index,
                     'error' => $e->getMessage()
                 ));
-                continue; // エラーが発生しても次の行に進む
-            }
-            
-            if ($post_id && !is_wp_error($post_id)) {
-                // ACFフィールドを更新（タクソノミー化されたフィールドは除外）
-                $acf_fields = array(
-                    'max_amount' => isset($row[7]) ? $row[7] : '',
-                    'max_amount_numeric' => isset($row[8]) ? intval($row[8]) : 0,
-                    'deadline' => isset($row[9]) ? $row[9] : '',
-                    'deadline_date' => isset($row[10]) ? $row[10] : '',
-                    'organization' => isset($row[11]) ? $row[11] : '',
-                    'organization_type' => isset($row[12]) ? $row[12] : 'national',
-                    'grant_target' => isset($row[13]) ? $row[13] : '',
-                    'application_method' => isset($row[14]) ? $row[14] : 'online',
-                    'contact_info' => isset($row[15]) ? $row[15] : '',
-                    'official_url' => isset($row[16]) ? $row[16] : '',
-                    'regional_limitation' => isset($row[17]) ? $row[17] : 'nationwide', // 新R列
-                    'application_status' => isset($row[18]) ? $row[18] : 'open', // 新S列
-                );
-                
-                // ACFフィールドの同期ログ
-                gi_log_error('Syncing ACF fields', array(
-                    'post_id' => $post_id,
+                $error_count++;
+                // エラーが発生しても次の行に進む
+            } catch (Error $e) {
+                gi_log_error('Fatal error processing row', array(
                     'row_index' => $row_index,
-                    'acf_fields_count' => count($acf_fields),
-                    'row_length' => count($row)
+                    'error' => $e->getMessage()
                 ));
-                
-                // ACFフィールドを更新
-                foreach ($acf_fields as $field => $value) {
-                    $update_result = update_field($field, $value, $post_id);
-                }
-                
-                // タクソノミーデータの同期（都道府県・市町村・カテゴリー）
-                
-                // ★完全連携: スプレッドシートからタクソノミーデータを同期
-                
-                // 都道府県を設定（T列のデータから） ★完全連携
-                if (isset($row[19]) && !empty($row[19])) {
-                    $prefectures = array_map('trim', explode(',', $row[19]));
-                    $prefecture_result = gi_set_terms_with_auto_create($post_id, $prefectures, 'grant_prefecture');
-                    
-                    gi_log_error('Prefecture sync result', array(
-                        'post_id' => $post_id,
-                        'raw_prefecture_data' => $row[19],
-                        'prefectures_array' => $prefectures,
-                        'set_terms_result' => $prefecture_result
-                    ));
-                }
-                
-                // 市町村を設定（U列のデータから） ★完全連携
-                if (isset($row[20]) && !empty($row[20])) {
-                    $municipalities = array_map('trim', explode(',', $row[20]));
-                    $municipality_result = gi_set_terms_with_auto_create($post_id, $municipalities, 'grant_municipality');
-                    
-                    gi_log_error('Municipality sync result', array(
-                        'post_id' => $post_id,
-                        'raw_municipality_data' => $row[20],
-                        'municipalities_array' => $municipalities,
-                        'set_terms_result' => $municipality_result
-                    ));
-                }
-                
-                // 都道府県から市町村への自動同期
-                if (function_exists('gi_sync_prefecture_to_municipality')) {
-                    gi_sync_prefecture_to_municipality($post_id, get_post($post_id), true);
-                }
-                
-                // カテゴリを設定（V列のデータから） ★完全連携 + 自動作成
-                if (isset($row[21]) && !empty($row[21])) {
-                    $categories = array_map('trim', explode(',', $row[21]));
-                    $category_result = gi_set_terms_with_auto_create($post_id, $categories, 'grant_category');
-                    
-                    gi_log_error('Category sync result', array(
-                        'post_id' => $post_id,
-                        'raw_category_data' => $row[21],
-                        'categories_array' => $categories,
-                        'set_terms_result' => $category_result
-                    ));
-                }
-                
-                // タグを設定（W列のデータから） ★完全連携 + 自動作成
-                if (isset($row[22]) && !empty($row[22])) {
-                    $tags = array_map('trim', explode(',', $row[22]));
-                    gi_set_terms_with_auto_create($post_id, $tags, 'grant_tag');
-                }
-                
-                // 新規ACFフィールドの同期 (X-AD列) ★31列対応（修正版）
-                $new_acf_fields = array(
-                    'external_link' => isset($row[23]) ? $row[23] : '',                   // X列: 外部リンク
-                    'area_notes' => isset($row[24]) ? $row[24] : '',                      // Y列: 地域に関する備考（修正）
-                    'required_documents_detailed' => isset($row[25]) ? $row[25] : '',     // Z列: 必要書類（修正）
-                    'adoption_rate' => isset($row[26]) ? floatval($row[26]) : 0,          // AA列: 採択率（%）
-                    'difficulty_level' => isset($row[27]) ? $row[27] : '中級',             // AB列: 申請難易度（修正）
-                    'eligible_expenses_detailed' => isset($row[28]) ? $row[28] : '',      // AC列: 対象経費（修正）
-                    'subsidy_rate_detailed' => isset($row[29]) ? $row[29] : '',           // AD列: 補助率（修正）
-                );
-                
-                // 新規ACFフィールドを更新
-                foreach ($new_acf_fields as $field => $value) {
-                    $update_result = update_field($field, $value, $post_id);
-                    gi_log_error('New ACF field updated', array(
-                        'post_id' => $post_id,
-                        'field' => $field,
-                        'value' => $value,
-                        'update_result' => $update_result
-                    ));
-                }
-                
-                $synced_count++;
+                $error_count++;
             }
         }
         
-        // 新規作成された投稿のIDをスプレッドシートに書き戻し
+        // 新規作成された投稿のIDをスプレッドシートに書き戻し（バッチ処理）
         if (!empty($new_post_ids_to_update)) {
-            gi_log_error('Updating spreadsheet with new post IDs', array('count' => count($new_post_ids_to_update)));
-            
-            foreach ($new_post_ids_to_update as $sheet_row => $new_post_id) {
-                try {
-                    // A列（post_id列）のみを更新
-                    $range = $this->get_sheet_name() . '!A' . $sheet_row;
-                    $success = $this->write_sheet_data($range, array(array($new_post_id)));
-                    
-                    if ($success) {
-                        gi_log_error('Updated post ID in spreadsheet', array(
-                            'post_id' => $new_post_id, 
-                            'row' => $sheet_row, 
-                            'range' => $range
-                        ));
-                    } else {
-                        gi_log_error('Failed to update post ID in spreadsheet', array(
-                            'post_id' => $new_post_id, 
-                            'row' => $sheet_row
-                        ));
-                    }
-                } catch (Exception $e) {
-                    gi_log_error('Exception while updating post ID in spreadsheet', array(
-                        'post_id' => $new_post_id,
-                        'row' => $sheet_row,
-                        'error' => $e->getMessage()
-                    ));
-                }
-            }
+            $this->batch_update_sheet_post_ids($new_post_ids_to_update);
         }
+        
+        // キャッシュ再有効化
+        wp_suspend_cache_addition(false);
+        wp_cache_flush();
         
         gi_log_error('sync_sheets_to_wp completed', array(
             'synced_count' => $synced_count,
-            'new_posts_updated' => count($new_post_ids_to_update)
+            'skipped_count' => $skipped_count,
+            'error_count' => $error_count,
+            'new_posts_updated' => count($new_post_ids_to_update),
+            'memory_peak' => round(memory_get_peak_usage(true) / 1024 / 1024, 2) . 'MB'
         ));
-        return $synced_count;
         
-        } catch (Exception $e) {
-            gi_log_error('sync_sheets_to_wp failed', array(
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ));
-            throw $e;
+        return $synced_count;
+    }
+    
+    /**
+     * ACFフィールドを更新（sync_sheets_to_wpから分離）
+     */
+    private function update_post_acf_fields($post_id, $row) {
+        // ACFフィールドを更新（タクソノミー化されたフィールドは除外）
+        $acf_fields = array(
+            'max_amount' => isset($row[7]) ? $row[7] : '',
+            'max_amount_numeric' => isset($row[8]) ? intval($row[8]) : 0,
+            'deadline' => isset($row[9]) ? $row[9] : '',
+            'deadline_date' => isset($row[10]) ? $row[10] : '',
+            'organization' => isset($row[11]) ? $row[11] : '',
+            'organization_type' => isset($row[12]) ? $row[12] : 'national',
+            'grant_target' => isset($row[13]) ? $row[13] : '',
+            'application_method' => isset($row[14]) ? $row[14] : 'online',
+            'contact_info' => isset($row[15]) ? $row[15] : '',
+            'official_url' => isset($row[16]) ? $row[16] : '',
+            'regional_limitation' => isset($row[17]) ? $row[17] : 'nationwide',
+            'application_status' => isset($row[18]) ? $row[18] : 'open',
+        );
+        
+        // ACFフィールドを更新
+        foreach ($acf_fields as $field => $value) {
+            if (function_exists('update_field')) {
+                update_field($field, $value, $post_id);
+            }
+        }
+        
+        // 新規ACFフィールドの同期 (X-AD列)
+        $new_acf_fields = array(
+            'external_link' => isset($row[23]) ? $row[23] : '',
+            'area_notes' => isset($row[24]) ? $row[24] : '',
+            'required_documents_detailed' => isset($row[25]) ? $row[25] : '',
+            'adoption_rate' => isset($row[26]) ? floatval($row[26]) : 0,
+            'difficulty_level' => isset($row[27]) ? $row[27] : '',
+            'eligible_expenses_detailed' => isset($row[28]) ? $row[28] : '',
+            'subsidy_rate_detailed' => isset($row[29]) ? $row[29] : '',
+        );
+        
+        foreach ($new_acf_fields as $field => $value) {
+            if (function_exists('update_field')) {
+                update_field($field, $value, $post_id);
+            }
+        }
+    }
+    
+    /**
+     * タクソノミーを更新（sync_sheets_to_wpから分離）
+     */
+    private function update_post_taxonomies($post_id, $row) {
+        // 都道府県を設定（T列のデータから）
+        if (isset($row[19]) && !empty($row[19])) {
+            $prefectures = array_map('trim', explode(',', $row[19]));
+            if (function_exists('gi_set_terms_with_auto_create')) {
+                gi_set_terms_with_auto_create($post_id, $prefectures, 'grant_prefecture');
+            }
+        }
+        
+        // 市町村を設定（U列のデータから）
+        if (isset($row[20]) && !empty($row[20])) {
+            $municipalities = array_map('trim', explode(',', $row[20]));
+            if (function_exists('gi_set_terms_with_auto_create')) {
+                gi_set_terms_with_auto_create($post_id, $municipalities, 'grant_municipality');
+            }
+        }
+        
+        // 都道府県から市町村への自動同期
+        if (function_exists('gi_sync_prefecture_to_municipality')) {
+            $post = get_post($post_id);
+            if ($post) {
+                gi_sync_prefecture_to_municipality($post_id, $post, true);
+            }
+        }
+        
+        // カテゴリを設定（V列のデータから）
+        if (isset($row[21]) && !empty($row[21])) {
+            $categories = array_map('trim', explode(',', $row[21]));
+            if (function_exists('gi_set_terms_with_auto_create')) {
+                gi_set_terms_with_auto_create($post_id, $categories, 'grant_category');
+            }
+        }
+        
+        // タグを設定（W列のデータから）
+        if (isset($row[22]) && !empty($row[22])) {
+            $tags = array_map('trim', explode(',', $row[22]));
+            if (function_exists('gi_set_terms_with_auto_create')) {
+                gi_set_terms_with_auto_create($post_id, $tags, 'grant_tag');
+            }
+        }
+    }
+    
+    /**
+     * 新規投稿IDをスプレッドシートにバッチ更新
+     */
+    private function batch_update_sheet_post_ids($new_post_ids_to_update) {
+        gi_log_error('Updating spreadsheet with new post IDs', array('count' => count($new_post_ids_to_update)));
+        
+        foreach ($new_post_ids_to_update as $sheet_row => $new_post_id) {
+            try {
+                // A列（post_id列）のみを更新
+                $range = $this->get_sheet_name() . '!A' . $sheet_row;
+                $this->write_sheet_data($range, array(array($new_post_id)));
+            } catch (Exception $e) {
+                gi_log_error('Exception while updating post ID in spreadsheet', array(
+                    'post_id' => $new_post_id,
+                    'row' => $sheet_row,
+                    'error' => $e->getMessage()
+                ));
+            }
         }
     }
     
@@ -1598,23 +1603,28 @@ class GoogleSheetsSync {
     }
     
     /**
-     * 手動同期のAJAXハンドラー
+     * 手動同期のAJAXハンドラー（改善版）
      */
     public function ajax_manual_sync() {
-        // タイムアウトとメモリ制限の拡張
-        set_time_limit(300); // 5分
-        ini_set('memory_limit', '256M');
+        // タイムアウトとメモリ制限の拡張（大幅に増加）
+        @set_time_limit(900); // 15分
+        @ini_set('memory_limit', '1024M');
+        @ini_set('max_execution_time', 900);
+        
+        // 出力バッファリングを無効化してメモリ節約
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
         
         // シャットダウンハンドラーを登録（致命的エラーをキャッチ）
         register_shutdown_function(array($this, 'ajax_shutdown_handler'));
         
         // 全体をtry-catchでラップして500エラーを防ぐ
         try {
-            // デバッグ: AJAXリクエストが到達したことをログに記録
             gi_log_error('AJAX manual sync request received', array(
                 'user_id' => get_current_user_id(),
-                'post_data' => $_POST,
-                'request_method' => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'UNKNOWN'
+                'memory_limit' => ini_get('memory_limit'),
+                'max_execution_time' => ini_get('max_execution_time')
             ));
             
             // Nonce検証
