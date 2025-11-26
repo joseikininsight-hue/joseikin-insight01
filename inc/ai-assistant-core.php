@@ -62,10 +62,21 @@ class GI_AI_Assistant_Core {
         
         // Nonce検証
         $nonce = isset($_POST['nonce']) ? $_POST['nonce'] : '';
-        if (!wp_verify_nonce($nonce, 'gi_ai_nonce')) {
+        $nonce_verified = false;
+
+        if (wp_verify_nonce($nonce, 'gi_ai_nonce')) {
+            $nonce_verified = true;
+        } elseif (wp_verify_nonce($nonce, 'wp_rest')) {
+            // Fallback for REST API nonce
+            $nonce_verified = true;
+        }
+
+        if (!$nonce_verified) {
+            error_log('AI Chat Nonce Verification Failed. Received: ' . $nonce);
             wp_send_json_error(array(
                 'message' => 'セキュリティチェックに失敗しました。ページを再読み込みしてください。',
-                'code' => 'NONCE_INVALID'
+                'code' => 'NONCE_INVALID',
+                'debug' => 'Nonce verification failed'
             ));
             return;
         }
@@ -76,7 +87,10 @@ class GI_AI_Assistant_Core {
         $history = isset($_POST['history']) ? $_POST['history'] : array();
         
         if (!$post_id || empty($question)) {
-            wp_send_json_error(array('message' => '質問または補助金IDが指定されていません。'));
+            wp_send_json_error(array(
+                'message' => '質問または補助金IDが指定されていません。',
+                'code' => 'MISSING_PARAMS'
+            ));
             return;
         }
         
@@ -116,7 +130,11 @@ class GI_AI_Assistant_Core {
      * =================================================================
      */
     public function handle_eligibility_diagnosis() {
-        check_ajax_referer('gi_ai_nonce', 'nonce');
+        $nonce = isset($_POST['nonce']) ? $_POST['nonce'] : '';
+        if (!wp_verify_nonce($nonce, 'gi_ai_nonce') && !wp_verify_nonce($nonce, 'wp_rest')) {
+             wp_send_json_error(array('message' => 'Security check failed'));
+             return;
+        }
         
         $post_id = intval($_POST['post_id'] ?? 0);
         $user_answers = $_POST['answers'] ?? array();
@@ -149,7 +167,11 @@ class GI_AI_Assistant_Core {
      * =================================================================
      */
     public function handle_generate_roadmap() {
-        check_ajax_referer('gi_ai_nonce', 'nonce');
+        $nonce = isset($_POST['nonce']) ? $_POST['nonce'] : '';
+        if (!wp_verify_nonce($nonce, 'gi_ai_nonce') && !wp_verify_nonce($nonce, 'wp_rest')) {
+             wp_send_json_error(array('message' => 'Security check failed'));
+             return;
+        }
         
         $post_id = intval($_POST['post_id'] ?? 0);
         $user_profile = $_POST['profile'] ?? array();
