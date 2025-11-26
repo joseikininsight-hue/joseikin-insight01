@@ -2029,16 +2029,25 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('question', question);
         
         fetch(CONFIG.ajaxUrl, { method: 'POST', body: formData })
-            .then(function(r) { return r.json(); })
+            .then(function(r) { 
+                if (!r.ok) {
+                    throw new Error('HTTP error! status: ' + r.status);
+                }
+                return r.json(); 
+            })
             .then(function(data) {
                 loadingMsg.remove();
+                console.log('AI Chat Response:', data);
+                
                 if (data.success && data.data && data.data.answer) {
                     addMessage(container, data.data.answer, 'ai');
                 } else {
-                    // Show detailed error or fallback
+                    // Show detailed error with better formatting
                     var errorMsg = 'エラーが発生しました。';
                     if (data.data && data.data.message) {
-                        errorMsg += ' (' + data.data.message + ')';
+                        errorMsg = data.data.message;
+                    } else if (!data.success) {
+                        errorMsg = '申し訳ございません。AI応答の生成に失敗しました。ページを再読み込みしてもう一度お試しください。';
                     }
                     addMessage(container, errorMsg, 'ai');
                     console.error('AI Chat Error:', data);
@@ -2046,7 +2055,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(function(err) {
                 loadingMsg.remove();
-                addMessage(container, '通信エラーが発生しました。しばらく経ってからもう一度お試しください。', 'ai');
+                addMessage(container, '通信エラーが発生しました。インターネット接続を確認してから、もう一度お試しください。', 'ai');
                 console.error('AI Chat Network Error:', err);
             })
             .finally(function() { btn.disabled = false; });
