@@ -24,13 +24,36 @@ add_action('wp_ajax_gi_ai_chat', 'gi_handle_ai_chat_request');
 add_action('wp_ajax_nopriv_gi_ai_chat', 'gi_handle_ai_chat_request');
 
 function gi_handle_ai_chat_request() {
+    // Debug logging
+    error_log('=== AI Chat Request Debug ===');
+    error_log('POST nonce: ' . ($_POST['nonce'] ?? 'NOT SET'));
+    error_log('Expected nonce action: gi_ai_nonce');
+    
     // Verify nonce
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'gi_ai_nonce')) {
+    if (!isset($_POST['nonce'])) {
+        error_log('❌ Nonce not set in POST data');
         wp_send_json_error(array(
-            'message' => 'セキュリティチェックに失敗しました。ページを再読み込みしてください。'
+            'message' => 'セキュリティチェックに失敗しました。ページを再読み込みしてください。',
+            'code' => 'NONCE_MISSING',
+            'debug' => 'Nonce not provided'
         ));
         return;
     }
+    
+    $nonce_check = wp_verify_nonce($_POST['nonce'], 'gi_ai_nonce');
+    error_log('Nonce verification result: ' . var_export($nonce_check, true));
+    
+    if (!$nonce_check) {
+        error_log('❌ Nonce verification failed');
+        wp_send_json_error(array(
+            'message' => 'セキュリティチェックに失敗しました。ページを再読み込みしてください。',
+            'code' => 'SECURITY_ERROR',
+            'debug' => 'Nonce verification failed. Please refresh the page.'
+        ));
+        return;
+    }
+    
+    error_log('✅ Nonce verification passed');
     
     // Get parameters
     $post_id = intval($_POST['post_id'] ?? 0);
