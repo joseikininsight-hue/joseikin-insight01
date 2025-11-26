@@ -2029,7 +2029,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         var formData = new FormData();
         formData.append('action', 'gi_ai_chat');
-        formData.append('nonce', CONFIG.nonce);
+        // Try to use fresh nonce from global settings if available, otherwise use CONFIG.nonce
+        var nonce = (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) 
+            ? window.ajaxSettings.nonce 
+            : ((typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) 
+                ? window.wpApiSettings.nonce 
+                : CONFIG.nonce);
+        formData.append('nonce', nonce);
         formData.append('post_id', CONFIG.postId);
         formData.append('question', question);
         
@@ -2114,7 +2120,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // 簡易的な診断のため、チェックリストの状態などを送信（今回はPOST_IDのみでバックエンドに任せる）
         var formData = new FormData();
         formData.append('action', 'gi_eligibility_diagnosis');
-        formData.append('nonce', CONFIG.nonce);
+        // Use fresh nonce if available
+        var nonce = (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) 
+            ? window.ajaxSettings.nonce 
+            : ((typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) 
+                ? window.wpApiSettings.nonce 
+                : CONFIG.nonce);
+        formData.append('nonce', nonce);
         formData.append('post_id', CONFIG.postId);
         
         // チェックリストの回答状況も送る場合
@@ -2161,7 +2173,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var formData = new FormData();
         formData.append('action', 'gi_generate_roadmap');
-        formData.append('nonce', CONFIG.nonce);
+        // Use fresh nonce if available
+        var nonce = (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) 
+            ? window.ajaxSettings.nonce 
+            : ((typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) 
+                ? window.wpApiSettings.nonce 
+                : CONFIG.nonce);
+        formData.append('nonce', nonce);
         formData.append('post_id', CONFIG.postId);
 
         fetch(CONFIG.ajaxUrl, { method: 'POST', body: formData })
