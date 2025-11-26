@@ -281,15 +281,15 @@ $page_info = ji_get_current_page_info();
         /* PC用ロゴサイズ */
         @media (min-width: 768px) {
             .ji-logo-image {
-                height: 36px;
-                max-width: 220px;
+                height: 32px;
+                max-width: 200px;
             }
         }
         
         @media (min-width: 1024px) {
             .ji-logo-image {
-                height: 40px;
-                max-width: 240px;
+                height: 32px;
+                max-width: 200px;
             }
         }
         
