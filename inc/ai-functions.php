@@ -4637,8 +4637,8 @@ add_action('wp_ajax_nopriv_gi_ai_chat', 'gi_handle_ajax_ai_chat');
 function gi_handle_ajax_ai_chat() {
     error_log('🔵 AJAX AI Chat Request received');
     
-    // Verify nonce
-    check_ajax_referer('wp_rest', 'nonce');
+    // Verify nonce - use custom nonce for AI chat
+    check_ajax_referer('gi_ai_chat_nonce', 'nonce');
     
     $question = isset($_POST['question']) ? sanitize_text_field($_POST['question']) : '';
     $context = isset($_POST['context']) ? $_POST['context'] : array();

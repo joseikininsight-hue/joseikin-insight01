@@ -722,7 +722,8 @@ ul, ol { list-style: none; }
 .gi-checklist-progress-percent { font-weight: 700; color: var(--gi-black); }
 .gi-checklist-category { border-bottom: 1px solid var(--gi-gray-200); }
 .gi-checklist-category:last-child { border-bottom: none; }
-.gi-checklist-category-header { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--gi-gray-800); font-size: 14px; font-weight: 700; color: var(--gi-white) !important; }
+.gi-checklist-category-header { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: #333 !important; font-size: 14px; font-weight: 700; color: #fff !important; }
+.gi-checklist .gi-checklist-category-header { color: #ffffff !important; }
 .gi-checklist-items { padding: 0; }
 .gi-checklist-item { display: flex; align-items: flex-start; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--gi-gray-100); cursor: pointer; transition: var(--gi-transition); background: var(--gi-white); }
 .gi-checklist-item:last-child { border-bottom: none; }
@@ -1872,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var CONFIG = {
         postId: <?php echo $post_id; ?>,
         ajaxUrl: '<?php echo admin_url("admin-ajax.php"); ?>',
-        nonce: '<?php echo wp_create_nonce("wp_rest"); ?>',
+        nonce: '<?php echo wp_create_nonce("gi_ai_chat_nonce"); ?>',
         url: '<?php echo esc_js($canonical_url); ?>',
         title: <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
         totalChecklist: <?php echo count($checklist_items); ?>
