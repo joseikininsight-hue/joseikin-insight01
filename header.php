@@ -204,6 +204,21 @@ $page_info = ji_get_current_page_info();
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         
+        /* ヘッダー内の全テキストを白色に強制 */
+        .ji-header,
+        .ji-header *,
+        .ji-header a,
+        .ji-header button,
+        .ji-header span,
+        .ji-header div:not(.ji-logo-image-wrapper) {
+            color: var(--white) !important;
+        }
+        
+        /* ロゴ画像は除外 */
+        .ji-header img {
+            color: unset !important;
+        }
+        
         @media (min-width: 768px) {
             .ji-header { height: 72px; }
         }
@@ -322,7 +337,7 @@ $page_info = ji_get_current_page_info();
             align-items: center;
             gap: 6px;
             padding: 14px 18px;
-            color: var(--white);
+            color: var(--white) !important;
             font-size: 0.9375rem;
             font-weight: 500;
             border-radius: 8px;
@@ -337,7 +352,7 @@ $page_info = ji_get_current_page_info();
         .ji-nav-link:hover,
         .ji-nav-link:focus-visible {
             background: rgba(255, 255, 255, 0.15);
-            color: var(--white);
+            color: var(--white) !important;
         }
         
         .ji-nav-link:focus-visible {
@@ -913,6 +928,16 @@ $page_info = ji_get_current_page_info();
         }
         
         .ji-mobile-menu.open { opacity: 1; visibility: visible; }
+        
+        /* モバイルメニュー内の全テキストを白色に強制 */
+        .ji-mobile-menu,
+        .ji-mobile-menu *,
+        .ji-mobile-menu a,
+        .ji-mobile-menu button,
+        .ji-mobile-menu span,
+        .ji-mobile-menu div {
+            color: var(--white) !important;
+        }
         
         .ji-mobile-menu-header {
             display: flex;

@@ -974,6 +974,131 @@ if (!function_exists('gi_get_cached_stats')) {
     get_template_part('template-parts/global-sticky-cta'); 
     ?>
 
+    <!-- ページトップへ戻るボタン -->
+    <button 
+        id="ji-back-to-top" 
+        class="ji-back-to-top" 
+        aria-label="ページトップへ戻る"
+        type="button"
+    >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 19V5M5 12L12 5L19 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+    <style>
+        /* ページトップへ戻るボタン */
+        .ji-back-to-top {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 48px;
+            height: 48px;
+            background: #000;
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .ji-back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .ji-back-to-top:hover {
+            background: #1a1a1a;
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+        }
+
+        .ji-back-to-top:active {
+            transform: translateY(0);
+        }
+
+        .ji-back-to-top:focus-visible {
+            outline: 2px solid #2563eb;
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 767px) {
+            .ji-back-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 44px;
+                height: 44px;
+            }
+        }
+
+        /* アクセシビリティ - アニメーション削減 */
+        @media (prefers-reduced-motion: reduce) {
+            .ji-back-to-top {
+                transition: opacity 0.1s, visibility 0.1s;
+            }
+        }
+    </style>
+
+    <script>
+        (function() {
+            'use strict';
+            
+            const backToTopBtn = document.getElementById('ji-back-to-top');
+            
+            if (!backToTopBtn) return;
+            
+            let lastScrollY = window.scrollY;
+            let ticking = false;
+            
+            // スクロール検出
+            function handleScroll() {
+                const scrollY = window.scrollY;
+                
+                if (scrollY > 300) {
+                    backToTopBtn.classList.add('visible');
+                } else {
+                    backToTopBtn.classList.remove('visible');
+                }
+                
+                lastScrollY = scrollY;
+                ticking = false;
+            }
+            
+            function requestTick() {
+                if (!ticking) {
+                    requestAnimationFrame(handleScroll);
+                    ticking = true;
+                }
+            }
+            
+            // クリックでトップへスクロール
+            backToTopBtn.addEventListener('click', function() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            });
+            
+            // スクロールイベント
+            window.addEventListener('scroll', requestTick, { passive: true });
+            
+            // 初期状態チェック
+            handleScroll();
+            
+            console.log('[✓] Back to Top button initialized');
+        })();
+    </script>
+
     <?php wp_footer(); ?>
 </body>
 </html>
