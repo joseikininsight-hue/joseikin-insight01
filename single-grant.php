@@ -2030,11 +2030,16 @@ document.addEventListener('DOMContentLoaded', function() {
         var formData = new FormData();
         formData.append('action', 'gi_ai_chat');
         // Try to use fresh nonce from global settings if available, otherwise use CONFIG.nonce
-        var nonce = (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) 
-            ? window.ajaxSettings.nonce 
-            : ((typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) 
-                ? window.wpApiSettings.nonce 
-                : CONFIG.nonce);
+        var nonce = '';
+        if (typeof window.gi_ajax !== 'undefined' && window.gi_ajax.nonce) {
+            nonce = window.gi_ajax.nonce;
+        } else if (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) {
+            nonce = window.ajaxSettings.nonce;
+        } else if (typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) {
+            nonce = window.wpApiSettings.nonce;
+        } else {
+            nonce = CONFIG.nonce;
+        }
         formData.append('nonce', nonce);
         formData.append('post_id', CONFIG.postId);
         formData.append('question', question);
@@ -2121,11 +2126,16 @@ document.addEventListener('DOMContentLoaded', function() {
         var formData = new FormData();
         formData.append('action', 'gi_eligibility_diagnosis');
         // Use fresh nonce if available
-        var nonce = (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) 
-            ? window.ajaxSettings.nonce 
-            : ((typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) 
-                ? window.wpApiSettings.nonce 
-                : CONFIG.nonce);
+        var nonce = '';
+        if (typeof window.gi_ajax !== 'undefined' && window.gi_ajax.nonce) {
+            nonce = window.gi_ajax.nonce;
+        } else if (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) {
+            nonce = window.ajaxSettings.nonce;
+        } else if (typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) {
+            nonce = window.wpApiSettings.nonce;
+        } else {
+            nonce = CONFIG.nonce;
+        }
         formData.append('nonce', nonce);
         formData.append('post_id', CONFIG.postId);
         
@@ -2174,11 +2184,16 @@ document.addEventListener('DOMContentLoaded', function() {
         var formData = new FormData();
         formData.append('action', 'gi_generate_roadmap');
         // Use fresh nonce if available
-        var nonce = (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) 
-            ? window.ajaxSettings.nonce 
-            : ((typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) 
-                ? window.wpApiSettings.nonce 
-                : CONFIG.nonce);
+        var nonce = '';
+        if (typeof window.gi_ajax !== 'undefined' && window.gi_ajax.nonce) {
+            nonce = window.gi_ajax.nonce;
+        } else if (typeof window.ajaxSettings !== 'undefined' && window.ajaxSettings.nonce) {
+            nonce = window.ajaxSettings.nonce;
+        } else if (typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) {
+            nonce = window.wpApiSettings.nonce;
+        } else {
+            nonce = CONFIG.nonce;
+        }
         formData.append('nonce', nonce);
         formData.append('post_id', CONFIG.postId);
 

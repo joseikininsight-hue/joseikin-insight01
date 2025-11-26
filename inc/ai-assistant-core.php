@@ -69,6 +69,12 @@ class GI_AI_Assistant_Core {
         } elseif (wp_verify_nonce($nonce, 'wp_rest')) {
             // Fallback for REST API nonce
             $nonce_verified = true;
+        } elseif (wp_verify_nonce($nonce, 'gi_ajax_nonce')) {
+            // Fallback for generic AJAX nonce
+            $nonce_verified = true;
+        } elseif (wp_verify_nonce($nonce, 'gi_ai_search_nonce')) {
+            // Fallback for search nonce
+            $nonce_verified = true;
         }
 
         if (!$nonce_verified) {
@@ -131,7 +137,15 @@ class GI_AI_Assistant_Core {
      */
     public function handle_eligibility_diagnosis() {
         $nonce = isset($_POST['nonce']) ? $_POST['nonce'] : '';
-        if (!wp_verify_nonce($nonce, 'gi_ai_nonce') && !wp_verify_nonce($nonce, 'wp_rest')) {
+        $nonce_verified = false;
+        
+        if (wp_verify_nonce($nonce, 'gi_ai_nonce') || 
+            wp_verify_nonce($nonce, 'wp_rest') || 
+            wp_verify_nonce($nonce, 'gi_ajax_nonce')) {
+            $nonce_verified = true;
+        }
+        
+        if (!$nonce_verified) {
              wp_send_json_error(array('message' => 'Security check failed'));
              return;
         }
@@ -168,7 +182,15 @@ class GI_AI_Assistant_Core {
      */
     public function handle_generate_roadmap() {
         $nonce = isset($_POST['nonce']) ? $_POST['nonce'] : '';
-        if (!wp_verify_nonce($nonce, 'gi_ai_nonce') && !wp_verify_nonce($nonce, 'wp_rest')) {
+        $nonce_verified = false;
+        
+        if (wp_verify_nonce($nonce, 'gi_ai_nonce') || 
+            wp_verify_nonce($nonce, 'wp_rest') || 
+            wp_verify_nonce($nonce, 'gi_ajax_nonce')) {
+            $nonce_verified = true;
+        }
+
+        if (!$nonce_verified) {
              wp_send_json_error(array('message' => 'Security check failed'));
              return;
         }

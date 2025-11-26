@@ -26,8 +26,8 @@ add_action('wp_ajax_gi_ai_search', 'handle_ai_search');
 add_action('wp_ajax_nopriv_gi_ai_search', 'handle_ai_search');
 
 // AIチャット機能  
-add_action('wp_ajax_gi_ai_chat', 'handle_ai_chat_request');
-add_action('wp_ajax_nopriv_gi_ai_chat', 'handle_ai_chat_request');
+// add_action('wp_ajax_gi_ai_chat', 'handle_ai_chat_request');
+// add_action('wp_ajax_nopriv_gi_ai_chat', 'handle_ai_chat_request');
 
 // Grant AI質問機能
 add_action('wp_ajax_handle_grant_ai_question', 'handle_grant_ai_question');
