@@ -80,6 +80,11 @@ function gisg_get_grant_card($pid) {
             $rate = ($min > 0 && $min != $max) ? $min . '%〜' . $max . '%' : $max . '%';
         }
     }
+    
+    // Fallback for cases where max is not set but text might be available in other fields
+    if (!$rate) {
+        $rate = gisg_get_field('subsidy_rate_limit', $pid);
+    }
 
     return array(
         'id' => $pid,

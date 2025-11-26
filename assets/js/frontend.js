@@ -2379,39 +2379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             color: #1f2937;
             margin-bottom: 8px;
         }
-        
-        /* トップに戻るボタン */
-        .gi-back-to-top {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 48px;
-            height: 48px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            z-index: 998;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .gi-back-to-top.gi-back-to-top-visible {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        .gi-back-to-top:hover {
-            background: #2563eb;
-            transform: translateY(-2px);
-        }
-        
+
         /* アニメーション */
         .gi-animate-on-scroll {
             opacity: 0;
