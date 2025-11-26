@@ -663,7 +663,16 @@ if (!function_exists('gi_get_cached_stats')) {
         <div class="ji-schema-data" itemscope itemtype="https://schema.org/Organization">
             <meta itemprop="name" content="<?php bloginfo('name'); ?>">
             <meta itemprop="url" content="<?php echo esc_url(home_url('/')); ?>">
-            <meta itemprop="description" content="日本全国の補助金・助成金情報を網羅した検索プラットフォーム">
+            <meta itemprop="logo" content="https://joseikin-insight.com/wp-content/uploads/2025/05/cropped-logo3.webp">
+            <meta itemprop="description" content="日本全国の補助金・助成金情報を網羅した検索プラットフォーム。専門家監修のもと、最新情報を毎日更新しています。">
+            <?php 
+            $sns_urls = gi_get_sns_urls();
+            foreach ($sns_urls as $url) {
+                if (!empty($url)) {
+                    echo '<link itemprop="sameAs" href="' . esc_url($url) . '" />';
+                }
+            }
+            ?>
             <div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
                 <meta itemprop="addressCountry" content="JP">
             </div>
@@ -889,6 +898,18 @@ if (!function_exists('gi_get_cached_stats')) {
                             <li>
                                 <a href="<?php echo esc_url(home_url('/about/')); ?>" class="ji-nav-link">
                                     運営者情報
+                                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="<?php echo esc_url(home_url('/supervisors/')); ?>" class="ji-nav-link">
+                                    監修者一覧
+                                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="<?php echo esc_url(home_url('/editorial-policy/')); ?>" class="ji-nav-link">
+                                    編集ポリシー
                                     <i class="fas fa-chevron-right" aria-hidden="true"></i>
                                 </a>
                             </li>

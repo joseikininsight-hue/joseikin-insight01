@@ -1441,6 +1441,8 @@ $page_info = ji_get_current_page_info();
                             <div class="ji-mega-column">
                                 <div class="ji-mega-column-title">サイトについて</div>
                                 <a href="<?php echo esc_url(home_url('/about/')); ?>" class="ji-mega-link" role="menuitem">助成金インサイトとは</a>
+                                <a href="<?php echo esc_url(home_url('/supervisors/')); ?>" class="ji-mega-link" role="menuitem">監修者・運営体制<span class="ji-badge">信頼</span></a>
+                                <a href="<?php echo esc_url(home_url('/editorial-policy/')); ?>" class="ji-mega-link" role="menuitem">編集ポリシー</a>
                                 <a href="<?php echo esc_url(home_url('/how-to-use/')); ?>" class="ji-mega-link" role="menuitem">使い方ガイド</a>
                                 <a href="<?php echo esc_url(home_url('/faq/')); ?>" class="ji-mega-link" role="menuitem">よくある質問</a>
                             </div>

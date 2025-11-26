@@ -68,6 +68,19 @@ function gisg_format_amount($amount) {
  * 補助金カードデータ取得
  */
 function gisg_get_grant_card($pid) {
+    $rate = gisg_get_field('subsidy_rate_detailed', $pid);
+    if (!$rate) {
+        $rate = gisg_get_field('subsidy_rate', $pid);
+    }
+    // If both are empty, try to construct from max/min
+    if (!$rate) {
+        $max = floatval(gisg_get_field('subsidy_rate_max', $pid, 0));
+        $min = floatval(gisg_get_field('subsidy_rate_min', $pid, 0));
+        if ($max > 0) {
+            $rate = ($min > 0 && $min != $max) ? $min . '%〜' . $max . '%' : $max . '%';
+        }
+    }
+
     return array(
         'id' => $pid,
         'title' => get_the_title($pid),
@@ -75,7 +88,7 @@ function gisg_get_grant_card($pid) {
         'organization' => gisg_get_field('organization', $pid),
         'max_amount' => gisg_get_field('max_amount', $pid),
         'max_amount_numeric' => intval(gisg_get_field('max_amount_numeric', $pid, 0)),
-        'subsidy_rate' => gisg_get_field('subsidy_rate', $pid),
+        'subsidy_rate' => $rate,
         'subsidy_rate_max' => floatval(gisg_get_field('subsidy_rate_max', $pid, 0)),
         'deadline' => gisg_get_field('deadline', $pid),
         'deadline_date' => gisg_get_field('deadline_date', $pid),
