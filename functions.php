@@ -359,6 +359,7 @@ $required_files = array(
     'card-display.php',            // カードレンダリング・表示機能
     'ajax-functions.php',          // AJAX処理
     'ai-functions.php',            // AI機能・検索履歴 (統合済み)
+    'ai-chat-fixed.php',           // 🔥 CRITICAL FIX: AI Chat Handler (overrides ai-functions.php)
     
     // Performance optimization
     'performance-optimization.php', // パフォーマンス最適化（v9.2.0+）
