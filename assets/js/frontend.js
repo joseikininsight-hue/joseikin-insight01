@@ -1494,7 +1494,6 @@ const GrantInsight = {
         
         this.setupScrollAnimations();
         this.setupSmoothScroll();
-        this.setupBackToTop();
         
         console.log('[Grant Insight] ✅ Animations setup complete');
     },
@@ -1539,35 +1538,6 @@ const GrantInsight = {
                     behavior: 'smooth'
                 });
             }
-        });
-    },
-
-    setupBackToTop() {
-        let backToTopButton = document.querySelector('.gi-back-to-top, .back-to-top');
-        
-        if (!backToTopButton) {
-            backToTopButton = document.createElement('button');
-            backToTopButton.className = 'gi-back-to-top';
-            backToTopButton.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12L12 5L19 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-            backToTopButton.setAttribute('aria-label', 'ページトップへ戻る');
-            document.body.appendChild(backToTopButton);
-        }
-        
-        const scrollHandler = this.throttle(() => {
-            if (window.scrollY > 300) {
-                backToTopButton.classList.add('gi-back-to-top-visible');
-            } else {
-                backToTopButton.classList.remove('gi-back-to-top-visible');
-            }
-        }, 100);
-        
-        window.addEventListener('scroll', scrollHandler, { passive: true });
-        
-        backToTopButton.addEventListener('click', () => {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
         });
     },
 
@@ -2409,39 +2379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             color: #1f2937;
             margin-bottom: 8px;
         }
-        
-        /* トップに戻るボタン */
-        .gi-back-to-top {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 48px;
-            height: 48px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            z-index: 998;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .gi-back-to-top.gi-back-to-top-visible {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        .gi-back-to-top:hover {
-            background: #2563eb;
-            transform: translateY(-2px);
-        }
-        
+
         /* アニメーション */
         .gi-animate-on-scroll {
             opacity: 0;

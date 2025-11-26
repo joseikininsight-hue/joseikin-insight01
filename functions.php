@@ -358,7 +358,14 @@ $required_files = array(
     // Core functionality
     'card-display.php',            // カードレンダリング・表示機能
     'ajax-functions.php',          // AJAX処理
-    'ai-functions.php',            // AI機能・検索履歴 (統合済み)
+    
+    // AI Assistant Core (Consolidated & Optimized) - v3.0.0
+    'ai-assistant-core.php',       // 🔥 NEW: Single file implementation for all AI features
+    
+    // DEPRECATED AI FILES (Removed to prevent conflicts)
+    // 'ai-functions.php',
+    // 'ai-chat-fixed.php',
+    // 'ai-assistant-enhanced.php',
     
     // Performance optimization
     'performance-optimization.php', // パフォーマンス最適化（v9.2.0+）
@@ -382,6 +389,9 @@ $required_files = array(
     
     // Grant Amount Fixer (v1.0.0+) - NEW: 助成金額修正ツール
     'grant-amount-fixer.php',  // 日付シリアル値を正しい金額に一括修正
+    
+    // AI Assistant Enhanced (v2.0.0+) - DEPRECATED: Merged into ai-assistant-core.php
+    // 'ai-assistant-enhanced.php',  // AIアシスタント完全版（リアルタイムチャット、診断フロー、ロードマップ生成）
 );
 
 // ファイルを安全に読み込み
@@ -682,3 +692,74 @@ function remove_duplicate_sections_from_content($content) {
     return $content;
 }
 add_filter('the_content', 'remove_duplicate_sections_from_content', 20);
+
+/**
+ * SEO Meta Tags Output (High Priority Fix)
+ */
+function gi_add_seo_meta_tags() {
+    if (!is_singular('grant')) return;
+    
+    global $post;
+    $grant_id = $post->ID;
+    
+    // Description
+    $desc = '';
+    $ai_summary = get_post_meta($grant_id, 'ai_summary', true);
+    if ($ai_summary) {
+        $desc = mb_substr(wp_strip_all_tags($ai_summary), 0, 120, 'UTF-8');
+    } else {
+        $desc = mb_substr(wp_strip_all_tags($post->post_content), 0, 120, 'UTF-8');
+    }
+    $desc = str_replace(array("\r", "\n"), '', $desc);
+    
+    echo '<meta name="description" content="' . esc_attr($desc) . '">' . "\n";
+    echo '<link rel="canonical" href="' . esc_url(get_permalink($grant_id)) . '">' . "\n";
+    
+    // OGP
+    echo '<meta property="og:title" content="' . esc_attr(get_the_title($grant_id)) . '">' . "\n";
+    echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+    echo '<meta property="og:url" content="' . esc_url(get_permalink($grant_id)) . '">' . "\n";
+    echo '<meta property="og:type" content="article">' . "\n";
+    
+    if (has_post_thumbnail($grant_id)) {
+        echo '<meta property="og:image" content="' . esc_url(get_the_post_thumbnail_url($grant_id, 'large')) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'gi_add_seo_meta_tags', 1);
+
+/**
+ * Inject Inline CTA (High Priority Fix)
+ */
+function gi_inject_inline_cta($content) {
+    if (!is_singular('grant') || is_admin()) return $content;
+    
+    // Only inject if content has enough length/headings
+    if (mb_strlen(strip_tags($content)) < 1000) return $content;
+    
+    // Inject after 2nd H2
+    $cta_html = '
+    <div class="gi-inline-cta" style="background:#f5f5f5;padding:20px;margin:32px 0;border:2px solid #111;text-align:center;">
+        <p style="font-weight:bold;margin-bottom:12px;">申請の準備はできていますか？</p>
+        <a href="#checklist" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;font-weight:bold;">申請チェックリストを確認する</a>
+    </div>';
+    
+    $headings = preg_split('/(<h2.*?>.*?<\/h2>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $new_content = '';
+    $h2_count = 0;
+    
+    foreach ($headings as $chunk) {
+        $new_content .= $chunk;
+        if (preg_match('/<h2/i', $chunk)) {
+            $h2_count++;
+            if ($h2_count === 2) {
+                $new_content .= $cta_html;
+            }
+        }
+    }
+    
+    // If content was not split (no H2), just return original or append CTA
+    if (count($headings) <= 1) return $content;
+    
+    return $new_content;
+}
+add_filter('the_content', 'gi_inject_inline_cta', 30); // Run after other filters
