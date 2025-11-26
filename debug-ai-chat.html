@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Debug Tool - 診断ツール</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #FFD700;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .section {
+            background: #2a2a2a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            color: #FFD700;
+            font-size: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .code-block {
+            background: #000;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block pre {
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #FFD700;
+            color: #000;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .copy-btn:hover {
+            background: #FFC700;
+        }
+        .step {
+            background: #333;
+            border-left: 4px solid #FFD700;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .step-number {
+            color: #FFD700;
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        .warning {
+            background: #ff4444;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        .success {
+            background: #00cc66;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        .info {
+            background: #0088ff;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .checklist {
+            list-style: none;
+            padding-left: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .checklist li:before {
+            content: '☐';
+            position: absolute;
+            left: 0;
+            color: #FFD700;
+            font-size: 20px;
+        }
+        .icon {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: #FFD700;
+            color: #000;
+            text-align: center;
+            line-height: 24px;
+            border-radius: 50%;
+            font-weight: 700;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #000;
+            color: #FFD700;
+            font-weight: 600;
+        }
+        td {
+            background: #2a2a2a;
+        }
+        .expected { color: #0f0; }
+        .actual-error { color: #f00; }
+        .highlight { background: #FFD700; color: #000; padding: 2px 6px; border-radius: 2px; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 AI Chat & Checklist デバッグツール</h1>
+        <p class="subtitle">ブラウザのコンソール（F12）で実行して問題を診断します</p>
+
+        <!-- セクション1: 基本診断 -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">1</span>
+                基本設定の確認（CONFIG オブジェクト）
+            </div>
+            <p>まず、ページに必要な設定が正しく読み込まれているか確認します。</p>
+            
+            <div class="step">
+                <div class="step-number">Step 1.1: CONFIG オブジェクトの確認</div>
+                <p>補助金詳細ページを開いて、ブラウザコンソール（F12）に以下を貼り付けて Enter：</p>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+                    <pre>// CONFIG オブジェクトの確認
+console.log('%c=== CONFIG 診断 ===', 'color: #FFD700; font-size: 18px; font-weight: bold;');
+console.log('CONFIG exists:', typeof CONFIG !== 'undefined');
+if (typeof CONFIG !== 'undefined') {
+    console.log('✅ CONFIG:', CONFIG);
+    console.log('  - postId:', CONFIG.postId);
+    console.log('  - ajaxUrl:', CONFIG.ajaxUrl);
+    console.log('  - nonce:', CONFIG.nonce);
+    console.log('  - nonce length:', CONFIG.nonce ? CONFIG.nonce.length : 0);
+} else {
+    console.error('❌ CONFIG が定義されていません！');
+}</pre>
+                </div>
+            </div>
+
+            <div class="info">
+                <strong>期待される結果:</strong><br>
+                ✅ CONFIG exists: true<br>
+                ✅ postId: [数字] (例: 12345)<br>
+                ✅ ajaxUrl: "/wp-admin/admin-ajax.php"<br>
+                ✅ nonce: [10文字の文字列] (例: "a1b2c3d4e5")<br>
+                ✅ nonce length: 10
+            </div>
+        </div>
+
+        <!-- セクション2: AJAX リクエストテスト -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">2</span>
+                AI Chat AJAX リクエストのテスト
+            </div>
+            
+            <div class="step">
+                <div class="step-number">Step 2.1: 手動AJAXリクエスト送信</div>
+                <p>実際のAI Chatリクエストを手動で送信して、レスポンスを確認します：</p>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+                    <pre>// AI Chat AJAX リクエストテスト
+console.log('%c=== AI Chat AJAX テスト ===', 'color: #FFD700; font-size: 18px; font-weight: bold;');
+
+if (typeof CONFIG === 'undefined') {
+    console.error('❌ CONFIG が未定義です。まず Step 1 を実行してください。');
+} else {
+    const formData = new FormData();
+    formData.append('action', 'gi_ai_chat');
+    formData.append('nonce', CONFIG.nonce);
+    formData.append('post_id', CONFIG.postId);
+    formData.append('question', 'テスト質問です');
+
+    console.log('📤 送信データ:');
+    console.log('  - action: gi_ai_chat');
+    console.log('  - nonce:', CONFIG.nonce);
+    console.log('  - post_id:', CONFIG.postId);
+    console.log('  - question: テスト質問です');
+    console.log('  - URL:', CONFIG.ajaxUrl);
+    
+    fetch(CONFIG.ajaxUrl, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('%c📥 レスポンス受信', 'color: #0f0; font-weight: bold;');
+        console.log('  - Status:', response.status);
+        console.log('  - Status Text:', response.statusText);
+        console.log('  - OK:', response.ok);
+        
+        if (!response.ok) {
+            console.error('❌ HTTP エラー! Status:', response.status);
+        }
+        return response.text();
+    })
+    .then(text => {
+        console.log('%c📄 Raw Response:', 'color: #0ff; font-weight: bold;');
+        console.log(text);
+        
+        try {
+            const data = JSON.parse(text);
+            console.log('%c✅ JSON Parse 成功:', 'color: #0f0; font-weight: bold;');
+            console.log(data);
+            
+            if (data.success) {
+                console.log('%c🎉 SUCCESS!', 'color: #0f0; font-size: 16px; font-weight: bold;');
+                console.log('  - Answer:', data.data.answer);
+                if (data.data.source) console.log('  - Source:', data.data.source);
+            } else {
+                console.error('%c❌ AJAX エラー', 'color: #f00; font-weight: bold;');
+                console.error('  - Message:', data.data ? data.data.message : 'Unknown error');
+                console.error('  - Full data:', data);
+            }
+        } catch (e) {
+            console.error('❌ JSON Parse エラー:', e);
+            console.error('レスポンスがJSONではありません。上記の Raw Response を確認してください。');
+        }
+    })
+    .catch(error => {
+        console.error('%c❌ Network エラー', 'color: #f00; font-weight: bold;');
+        console.error(error);
+    });
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- セクション3: Nonce 検証 -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">3</span>
+                Nonce セキュリティチェック診断
+            </div>
+            
+            <div class="step">
+                <div class="step-number">Step 3.1: Nonce 詳細診断</div>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+                    <pre>// Nonce 診断
+console.log('%c=== Nonce 診断 ===', 'color: #FFD700; font-size: 18px; font-weight: bold;');
+
+if (typeof CONFIG !== 'undefined' && CONFIG.nonce) {
+    console.log('✅ Nonce 存在: ', CONFIG.nonce);
+    console.log('✅ Nonce 長さ: ', CONFIG.nonce.length);
+    console.log('✅ Nonce タイプ: ', typeof CONFIG.nonce);
+    
+    // Nonce の有効性チェック（簡易版）
+    if (CONFIG.nonce.length === 10) {
+        console.log('✅ Nonce 長さは正常です (10文字)');
+    } else {
+        console.warn('⚠️ Nonce 長さが異常です。期待: 10文字, 実際:', CONFIG.nonce.length);
+    }
+    
+    if (/^[a-zA-Z0-9]+$/.test(CONFIG.nonce)) {
+        console.log('✅ Nonce フォーマットは正常です (英数字のみ)');
+    } else {
+        console.warn('⚠️ Nonce に不正な文字が含まれています');
+    }
+    
+    // Nonce 名の確認（ページソースから）
+    console.log('%c📄 ページソースから Nonce 生成コードを確認:', 'color: #0ff;');
+    console.log('ページの HTML ソースを表示して、以下を検索してください:');
+    console.log('  1. "wp_create_nonce" で検索');
+    console.log('  2. 何という名前で生成されているか確認');
+    console.log('  3. "gi_ai_nonce" になっているか確認');
+    
+} else {
+    console.error('❌ Nonce が存在しません！');
+    console.error('CONFIG.nonce:', typeof CONFIG !== 'undefined' ? CONFIG.nonce : 'CONFIG 未定義');
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- セクション4: PHP エラーログ確認 -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">4</span>
+                サーバー側（PHP）のエラー確認
+            </div>
+            
+            <div class="step">
+                <div class="step-number">Step 4.1: WordPress AJAX エンドポイント確認</div>
+                <p>WordPressのAJAXエンドポイントが正しく動作しているか確認：</p>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+                    <pre>// WordPress AJAX エンドポイント確認
+console.log('%c=== AJAX エンドポイント確認 ===', 'color: #FFD700; font-size: 18px; font-weight: bold;');
+
+if (typeof CONFIG !== 'undefined') {
+    const testUrl = CONFIG.ajaxUrl + '?action=gi_ai_chat';
+    console.log('テストURL:', testUrl);
+    
+    fetch(testUrl, { method: 'GET' })
+        .then(r => {
+            console.log('✅ エンドポイントに到達可能');
+            console.log('Status:', r.status);
+            return r.text();
+        })
+        .then(text => {
+            console.log('Response:', text);
+            if (text.includes('-1')) {
+                console.warn('⚠️ WordPress は -1 を返しています（Nonce エラーの可能性）');
+            }
+        })
+        .catch(e => {
+            console.error('❌ エンドポイントに到達できません:', e);
+        });
+} else {
+    console.error('❌ CONFIG が未定義です');
+}</pre>
+                </div>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ サーバー側のログ確認が必要な場合:</strong><br>
+                SSH でサーバーにアクセスし、以下のコマンドでエラーログを確認してください：<br>
+                <code style="background: #000; padding: 2px 6px; border-radius: 3px; font-family: monospace;">
+                    tail -f /path/to/wordpress/wp-content/debug.log
+                </code>
+            </div>
+        </div>
+
+        <!-- セクション5: チェックリスト CSS 診断 -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">5</span>
+                チェックリスト表示の診断
+            </div>
+            
+            <div class="step">
+                <div class="step-number">Step 5.1: チェックリスト要素のスタイル確認</div>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+                    <pre>// チェックリスト CSS 診断
+console.log('%c=== チェックリスト診断 ===', 'color: #FFD700; font-size: 18px; font-weight: bold;');
+
+const checklistTitle = document.querySelector('.gi-checklist-title');
+const categoryHeaders = document.querySelectorAll('.gi-checklist-category-header');
+
+if (checklistTitle) {
+    console.log('✅ チェックリストタイトル発見');
+    const styles = window.getComputedStyle(checklistTitle);
+    console.log('現在のスタイル:');
+    console.log('  - color:', styles.color);
+    console.log('  - background:', styles.backgroundColor);
+    console.log('  - font-weight:', styles.fontWeight);
+    console.log('  - display:', styles.display);
+    
+    const rgb = styles.color.match(/\d+/g);
+    if (rgb) {
+        const [r, g, b] = rgb.map(Number);
+        const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        console.log('  - color (HEX):', hex);
+        
+        if (hex.toLowerCase() === '#ffffff' || (r > 200 && g > 200 && b > 200)) {
+            console.log('%c✅ タイトルは白色です！', 'color: #0f0; font-weight: bold;');
+        } else {
+            console.error('%c❌ タイトルが白色ではありません！', 'color: #f00; font-weight: bold;');
+            console.error('期待: #ffffff, 実際:', hex);
+        }
+    }
+    
+    // インラインスタイルの確認
+    console.log('インラインスタイル:', checklistTitle.getAttribute('style'));
+} else {
+    console.error('❌ チェックリストタイトルが見つかりません');
+}
+
+console.log('\n--- カテゴリヘッダー確認 ---');
+if (categoryHeaders.length > 0) {
+    console.log(`✅ ${categoryHeaders.length} 個のカテゴリヘッダー発見`);
+    categoryHeaders.forEach((header, i) => {
+        const styles = window.getComputedStyle(header);
+        console.log(`カテゴリ ${i + 1}:`, header.textContent.trim());
+        console.log('  - color:', styles.color);
+        console.log('  - background:', styles.backgroundColor);
+        console.log('  - inline style:', header.getAttribute('style'));
+    });
+} else {
+    console.error('❌ カテゴリヘッダーが見つかりません');
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- セクション6: 完全診断レポート -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">6</span>
+                🎯 完全診断レポート（全部実行）
+            </div>
+            
+            <div class="step">
+                <div class="step-number">Step 6.1: 一括診断スクリプト</div>
+                <p><strong>すべての診断を一度に実行します。これを実行すれば問題の特定が簡単になります！</strong></p>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+                    <pre>// 🎯 AI Chat & Checklist 完全診断
+(async function() {
+    console.clear();
+    console.log('%c╔═══════════════════════════════════════════════╗', 'color: #FFD700;');
+    console.log('%c║   AI Chat & Checklist 完全診断レポート       ║', 'color: #FFD700; font-size: 16px; font-weight: bold;');
+    console.log('%c╚═══════════════════════════════════════════════╝', 'color: #FFD700;');
+    console.log('');
+    
+    let errors = [];
+    let warnings = [];
+    let success = [];
+    
+    // 1. CONFIG チェック
+    console.log('%c[1/6] CONFIG オブジェクト確認', 'color: #0ff; font-weight: bold;');
+    if (typeof CONFIG === 'undefined') {
+        errors.push('CONFIG が未定義');
+        console.error('❌ CONFIG が定義されていません！');
+    } else {
+        success.push('CONFIG 定義済み');
+        console.log('✅ CONFIG:', CONFIG);
+        
+        if (!CONFIG.nonce) {
+            errors.push('CONFIG.nonce が空');
+        } else if (CONFIG.nonce.length !== 10) {
+            warnings.push(`Nonce 長さ異常 (${CONFIG.nonce.length}文字)`);
+        } else {
+            success.push('Nonce 正常');
+        }
+        
+        if (!CONFIG.ajaxUrl) {
+            errors.push('CONFIG.ajaxUrl が空');
+        } else {
+            success.push('ajaxUrl 正常');
+        }
+        
+        if (!CONFIG.postId) {
+            errors.push('CONFIG.postId が空');
+        } else {
+            success.push('postId 正常');
+        }
+    }
+    console.log('');
+    
+    // 2. AJAX テスト
+    if (typeof CONFIG !== 'undefined' && CONFIG.nonce) {
+        console.log('%c[2/6] AJAX リクエストテスト', 'color: #0ff; font-weight: bold;');
+        try {
+            const formData = new FormData();
+            formData.append('action', 'gi_ai_chat');
+            formData.append('nonce', CONFIG.nonce);
+            formData.append('post_id', CONFIG.postId);
+            formData.append('question', '診断テスト');
+            
+            const response = await fetch(CONFIG.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+            
+            console.log('HTTP Status:', response.status);
+            
+            const text = await response.text();
+            console.log('Raw Response:', text.substring(0, 200));
+            
+            try {
+                const data = JSON.parse(text);
+                if (data.success) {
+                    success.push('AJAX リクエスト成功');
+                    console.log('%c✅ AJAX 成功!', 'color: #0f0; font-weight: bold;');
+                    console.log('Response:', data);
+                } else {
+                    errors.push(`AJAX エラー: ${data.data ? data.data.message : 'Unknown'}`);
+                    console.error('%c❌ AJAX 失敗:', 'color: #f00; font-weight: bold;');
+                    console.error('Error:', data.data);
+                }
+            } catch (e) {
+                errors.push('JSON Parse エラー');
+                console.error('❌ JSON Parse 失敗:', e);
+            }
+        } catch (e) {
+            errors.push(`Network エラー: ${e.message}`);
+            console.error('❌ Network エラー:', e);
+        }
+    } else {
+        console.log('%c[2/6] AJAX テストスキップ（CONFIG 未定義）', 'color: #f90; font-weight: bold;');
+    }
+    console.log('');
+    
+    // 3. チェックリストタイトル
+    console.log('%c[3/6] チェックリストタイトル確認', 'color: #0ff; font-weight: bold;');
+    const title = document.querySelector('.gi-checklist-title');
+    if (title) {
+        const color = window.getComputedStyle(title).color;
+        const rgb = color.match(/\d+/g);
+        if (rgb) {
+            const [r, g, b] = rgb.map(Number);
+            const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+            console.log('色:', hex);
+            if (r > 200 && g > 200 && b > 200) {
+                success.push('タイトル白色表示');
+                console.log('✅ タイトルは白色');
+            } else {
+                errors.push(`タイトル色が黒: ${hex}`);
+                console.error('❌ タイトルが白色ではない:', hex);
+            }
+        }
+    } else {
+        warnings.push('チェックリストタイトル要素なし');
+        console.warn('⚠️ タイトル要素が見つかりません');
+    }
+    console.log('');
+    
+    // 4. カテゴリヘッダー
+    console.log('%c[4/6] カテゴリヘッダー確認', 'color: #0ff; font-weight: bold;');
+    const headers = document.querySelectorAll('.gi-checklist-category-header');
+    console.log(`発見: ${headers.length} 個`);
+    headers.forEach((h, i) => {
+        const color = window.getComputedStyle(h).color;
+        const rgb = color.match(/\d+/g);
+        if (rgb) {
+            const [r, g, b] = rgb.map(Number);
+            if (r > 200 && g > 200 && b > 200) {
+                console.log(`✅ ヘッダー ${i+1}: 白色`);
+            } else {
+                const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+                console.error(`❌ ヘッダー ${i+1}: ${hex}`);
+                warnings.push(`ヘッダー ${i+1} が黒`);
+            }
+        }
+    });
+    console.log('');
+    
+    // 5. イベントリスナー確認
+    console.log('%c[5/6] AI入力フィールド確認', 'color: #0ff; font-weight: bold;');
+    const aiInput = document.getElementById('aiInput');
+    const aiSend = document.getElementById('aiSend');
+    if (aiInput) {
+        success.push('AI入力フィールド存在');
+        console.log('✅ AI入力フィールド発見');
+    } else {
+        warnings.push('AI入力フィールドなし');
+        console.warn('⚠️ AI入力フィールドが見つかりません');
+    }
+    if (aiSend) {
+        success.push('AI送信ボタン存在');
+        console.log('✅ AI送信ボタン発見');
+    } else {
+        warnings.push('AI送信ボタンなし');
+        console.warn('⚠️ AI送信ボタンが見つかりません');
+    }
+    console.log('');
+    
+    // 6. 最終レポート
+    console.log('%c[6/6] 診断サマリー', 'color: #0ff; font-size: 16px; font-weight: bold;');
+    console.log('');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #FFD700;');
+    console.log('%c✅ 成功 (' + success.length + ')', 'color: #0f0; font-weight: bold;');
+    success.forEach(s => console.log('  ✓', s));
+    console.log('');
+    
+    if (warnings.length > 0) {
+        console.log('%c⚠️  警告 (' + warnings.length + ')', 'color: #f90; font-weight: bold;');
+        warnings.forEach(w => console.warn('  ⚠', w));
+        console.log('');
+    }
+    
+    if (errors.length > 0) {
+        console.log('%c❌ エラー (' + errors.length + ')', 'color: #f00; font-weight: bold;');
+        errors.forEach(e => console.error('  ✗', e));
+        console.log('');
+    }
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #FFD700;');
+    console.log('');
+    
+    if (errors.length === 0 && warnings.length === 0) {
+        console.log('%c🎉 診断完了: すべて正常です！', 'color: #0f0; font-size: 18px; font-weight: bold;');
+    } else if (errors.length > 0) {
+        console.log('%c🚨 重大な問題が見つかりました。上記のエラーを修正してください。', 'color: #f00; font-size: 16px; font-weight: bold;');
+    } else {
+        console.log('%c⚠️  警告がありますが、動作には問題ないかもしれません。', 'color: #f90; font-size: 16px; font-weight: bold;');
+    }
+    console.log('');
+    console.log('%cこの結果をスクリーンショットで送ってください！', 'color: #FFD700; font-size: 14px; font-weight: bold;');
+})();</pre>
+                </div>
+            </div>
+            
+            <div class="success">
+                <strong>👆 このコードを実行して、結果のスクリーンショットを送ってください！</strong><br>
+                すべての問題が一目でわかります。
+            </div>
+        </div>
+
+        <!-- セクション7: トラブルシューティング -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">7</span>
+                よくある問題と解決策
+            </div>
+            
+            <table>
+                <tr>
+                    <th>エラーメッセージ</th>
+                    <th>原因</th>
+                    <th>解決策</th>
+                </tr>
+                <tr>
+                    <td>CONFIG が未定義</td>
+                    <td>JavaScriptが正しく読み込まれていない</td>
+                    <td>キャッシュクリア、ページリロード</td>
+                </tr>
+                <tr>
+                    <td>Nonce が空</td>
+                    <td>PHPでNonceが生成されていない</td>
+                    <td>single-grant.php で wp_create_nonce 確認</td>
+                </tr>
+                <tr>
+                    <td>HTTP Status 400/500</td>
+                    <td>サーバーエラー</td>
+                    <td>PHPエラーログ確認、debug.log を見る</td>
+                </tr>
+                <tr>
+                    <td>JSON Parse エラー</td>
+                    <td>レスポンスがJSONでない（HTML/エラー）</td>
+                    <td>Raw Response を確認、PHPエラー修正</td>
+                </tr>
+                <tr>
+                    <td>セキュリティチェック失敗</td>
+                    <td>Nonce検証エラー</td>
+                    <td>Nonce名が一致しているか確認（gi_ai_nonce）</td>
+                </tr>
+                <tr>
+                    <td>タイトルが黒色</td>
+                    <td>CSS優先度の問題</td>
+                    <td>インラインスタイル確認、!important 追加</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function copyCode(btn) {
+            const codeBlock = btn.nextElementSibling;
+            const code = codeBlock.textContent;
+            
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = btn.textContent;
+                btn.textContent = 'コピー完了！';
+                btn.style.background = '#0f0';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '#FFD700';
+                }, 2000);
+            }).catch(err => {
+                alert('コピー失敗: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>
