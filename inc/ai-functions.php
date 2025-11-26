@@ -4840,3 +4840,44 @@ add_action('rest_api_init', function() {
     
     error_log('✅ REST API endpoint registered');
 });
+/**
+ * Test endpoint for nonce verification debugging
+ * Access: /wp-admin/admin-ajax.php?action=gi_test_nonce&nonce=NONCE_VALUE
+ */
+add_action('wp_ajax_gi_test_nonce', 'gi_test_nonce_endpoint');
+add_action('wp_ajax_nopriv_gi_test_nonce', 'gi_test_nonce_endpoint');
+
+function gi_test_nonce_endpoint() {
+    error_log('=== NONCE TEST ENDPOINT ===');
+    
+    $response = array(
+        'post_data' => $_POST,
+        'get_data' => $_GET,
+        'current_user_id' => get_current_user_id(),
+        'is_user_logged_in' => is_user_logged_in(),
+        'nonce_from_post' => $_POST['nonce'] ?? 'not set',
+        'nonce_from_get' => $_GET['nonce'] ?? 'not set',
+    );
+    
+    // Test nonce from POST
+    if (isset($_POST['nonce'])) {
+        $nonce_check = wp_verify_nonce($_POST['nonce'], 'gi_ai_nonce');
+        $response['nonce_verification_post'] = $nonce_check;
+        $response['nonce_verification_result_post'] = $nonce_check === 1 ? 'valid' : ($nonce_check === 2 ? 'valid_within_12h' : 'invalid');
+    }
+    
+    // Test nonce from GET
+    if (isset($_GET['nonce'])) {
+        $nonce_check = wp_verify_nonce($_GET['nonce'], 'gi_ai_nonce');
+        $response['nonce_verification_get'] = $nonce_check;
+        $response['nonce_verification_result_get'] = $nonce_check === 1 ? 'valid' : ($nonce_check === 2 ? 'valid_within_12h' : 'invalid');
+    }
+    
+    // Generate a fresh nonce
+    $response['fresh_nonce'] = wp_create_nonce('gi_ai_nonce');
+    
+    // Log everything
+    error_log('Nonce Test Response: ' . print_r($response, true));
+    
+    wp_send_json_success($response);
+}
