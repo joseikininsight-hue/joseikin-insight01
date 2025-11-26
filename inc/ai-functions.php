@@ -4882,3 +4882,33 @@ function gi_test_nonce_endpoint() {
     
     wp_send_json_success($response);
 }
+
+/**
+ * Clear all WordPress caches - for debugging only
+ * Access: /wp-admin/admin-ajax.php?action=gi_clear_cache
+ */
+add_action('wp_ajax_gi_clear_cache', 'gi_clear_all_caches');
+
+function gi_clear_all_caches() {
+    // Clear WordPress object cache
+    wp_cache_flush();
+    
+    // Clear transients
+    global $wpdb;
+    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_%'");
+    
+    // Clear rewrite rules
+    flush_rewrite_rules();
+    
+    $response = array(
+        'message' => 'All caches cleared',
+        'timestamp' => current_time('mysql'),
+        'actions_taken' => array(
+            'wp_cache_flush' => true,
+            'transients_deleted' => true,
+            'rewrite_rules_flushed' => true
+        )
+    );
+    
+    wp_send_json_success($response);
+}
