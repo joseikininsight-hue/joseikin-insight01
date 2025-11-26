@@ -4883,4 +4883,3 @@ function gi_test_nonce_endpoint() {
     wp_send_json_success($response);
 }
 
-/**
