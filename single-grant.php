@@ -2082,22 +2082,134 @@ document.addEventListener('DOMContentLoaded', function() {
         aiInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
     }
     
-    document.querySelectorAll('.gi-ai-chip').forEach(function(chip) {
-        chip.addEventListener('click', function() { if (aiInput) { aiInput.value = this.dataset.q; sendAiMessage(aiInput, aiMessages, aiSend); } });
+    document.querySelectorAll('.gi-ai-chip, .gi-mobile-ai-chip').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+            var input = this.classList.contains('gi-ai-chip') ? aiInput : mobileAiInput;
+            var container = this.classList.contains('gi-ai-chip') ? aiMessages : mobileAiMessages;
+            var btn = this.classList.contains('gi-ai-chip') ? aiSend : mobileAiSend;
+            
+            if (this.dataset.action) {
+                if (this.dataset.action === 'diagnosis') {
+                    runDiagnosis(container);
+                } else if (this.dataset.action === 'roadmap') {
+                    generateRoadmap(container);
+                }
+            } else if (input) {
+                input.value = this.dataset.q;
+                sendAiMessage(input, container, btn);
+            }
+        });
     });
-    
-    var mobileAiInput = document.getElementById('mobileAiInput');
-    var mobileAiSend = document.getElementById('mobileAiSend');
-    var mobileAiMessages = document.getElementById('mobileAiMessages');
-    
-    if (mobileAiSend && mobileAiInput && mobileAiMessages) {
-        mobileAiSend.addEventListener('click', function() { sendAiMessage(mobileAiInput, mobileAiMessages, mobileAiSend); });
-        mobileAiInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAiMessage(mobileAiInput, mobileAiMessages, mobileAiSend); } });
+
+    // 資格診断機能
+    function runDiagnosis(container) {
+        addMessage(container, '申請資格があるか診断してください。', 'user');
+        
+        var loadingMsg = createLoadingMessage(container, '資格を診断中...');
+        
+        // 簡易的な診断のため、チェックリストの状態などを送信（今回はPOST_IDのみでバックエンドに任せる）
+        var formData = new FormData();
+        formData.append('action', 'gi_eligibility_diagnosis');
+        formData.append('nonce', CONFIG.nonce);
+        formData.append('post_id', CONFIG.postId);
+        
+        // チェックリストの回答状況も送る場合
+        var answers = {};
+        document.querySelectorAll('.gi-checklist-item').forEach(function(item) {
+            answers[item.querySelector('.gi-checklist-label').textContent.trim()] = item.classList.contains('checked') ? 'はい' : 'いいえ';
+        });
+        for (var key in answers) {
+            formData.append('answers[' + key + ']', answers[key]);
+        }
+
+        fetch(CONFIG.ajaxUrl, { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loadingMsg.remove();
+                if (data.success) {
+                    var d = data.data;
+                    var html = '<div style="font-weight:bold;margin-bottom:8px;font-size:1.1em;">' + (d.eligible ? '✅ 申請資格の可能性が高いです' : '⚠️ 要件を確認してください') + '</div>';
+                    
+                    if (d.reasons && d.reasons.length) {
+                        html += '<strong>判定理由:</strong><ul style="margin:4px 0 8px 20px;list-style:disc;">' + d.reasons.map(function(r){return '<li>'+r+'</li>'}).join('') + '</ul>';
+                    }
+                    if (d.warnings && d.warnings.length) {
+                        html += '<strong>注意点:</strong><ul style="margin:4px 0 8px 20px;list-style:disc;color:#dc2626;">' + d.warnings.map(function(w){return '<li>'+w+'</li>'}).join('') + '</ul>';
+                    }
+                    if (d.next_steps && d.next_steps.length) {
+                        html += '<strong>次のステップ:</strong><ol style="margin:4px 0 0 20px;list-style:decimal;">' + d.next_steps.map(function(s){return '<li>'+s+'</li>'}).join('') + '</ol>';
+                    }
+                    addHtmlMessage(container, html, 'ai');
+                } else {
+                    addMessage(container, '診断中にエラーが発生しました: ' + (data.data.message || '不明なエラー'), 'ai');
+                }
+            })
+            .catch(function(e) {
+                loadingMsg.remove();
+                addMessage(container, '通信エラーが発生しました。', 'ai');
+            });
     }
-    
-    document.querySelectorAll('.gi-mobile-ai-chip').forEach(function(chip) {
-        chip.addEventListener('click', function() { if (mobileAiInput) { mobileAiInput.value = this.dataset.q; sendAiMessage(mobileAiInput, mobileAiMessages, mobileAiSend); } });
-    });
+
+    // ロードマップ生成機能
+    function generateRoadmap(container) {
+        addMessage(container, '申請までのロードマップを作成してください。', 'user');
+        var loadingMsg = createLoadingMessage(container, 'ロードマップを作成中...');
+
+        var formData = new FormData();
+        formData.append('action', 'gi_generate_roadmap');
+        formData.append('nonce', CONFIG.nonce);
+        formData.append('post_id', CONFIG.postId);
+
+        fetch(CONFIG.ajaxUrl, { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loadingMsg.remove();
+                if (data.success) {
+                    var d = data.data;
+                    var html = '<div style="font-weight:bold;margin-bottom:12px;">📅 申請ロードマップ</div>';
+                    
+                    if (d.roadmap && d.roadmap.length) {
+                        html += '<div style="display:flex;flex-direction:column;gap:12px;">';
+                        d.roadmap.forEach(function(step, i) {
+                            html += '<div style="background:#f9fafb;padding:10px;border-left:3px solid #111;font-size:0.95em;">';
+                            html += '<div style="font-weight:bold;color:#111;">' + (i+1) + '. ' + step.title + ' <span style="font-weight:normal;color:#666;font-size:0.9em;">(' + step.timing + ')</span></div>';
+                            html += '<div style="color:#4b5563;margin-top:4px;">' + step.description + '</div>';
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                    }
+                    
+                    if (d.tips && d.tips.length) {
+                        html += '<div style="margin-top:12px;font-size:0.9em;color:#4b5563;"><strong>💡 アドバイス:</strong> ' + d.tips[0] + '</div>';
+                    }
+                    
+                    addHtmlMessage(container, html, 'ai');
+                } else {
+                    addMessage(container, 'ロードマップ生成に失敗しました。', 'ai');
+                }
+            })
+            .catch(function(e) {
+                loadingMsg.remove();
+                addMessage(container, '通信エラーが発生しました。', 'ai');
+            });
+    }
+
+    function createLoadingMessage(container, text) {
+        var msg = document.createElement('div');
+        msg.className = 'gi-ai-msg';
+        msg.innerHTML = '<div class="gi-ai-avatar">AI</div><div class="gi-ai-bubble">' + text + '</div>';
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+        return msg;
+    }
+
+    function addHtmlMessage(container, html, type) {
+        var msg = document.createElement('div');
+        msg.className = 'gi-ai-msg' + (type === 'user' ? ' user' : '');
+        msg.innerHTML = '<div class="gi-ai-avatar">' + (type === 'user' ? 'You' : 'AI') + '</div><div class="gi-ai-bubble">' + html + '</div>';
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+    }
     
     // パネル
     var mobileAiBtn = document.getElementById('mobileAiBtn');

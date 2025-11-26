@@ -358,8 +358,14 @@ $required_files = array(
     // Core functionality
     'card-display.php',            // カードレンダリング・表示機能
     'ajax-functions.php',          // AJAX処理
-    'ai-functions.php',            // AI機能・検索履歴 (統合済み)
-    'ai-chat-fixed.php',           // 🔥 CRITICAL FIX: AI Chat Handler (overrides ai-functions.php)
+    
+    // AI Assistant Core (Consolidated & Optimized) - v3.0.0
+    'ai-assistant-core.php',       // 🔥 NEW: Single file implementation for all AI features
+    
+    // DEPRECATED AI FILES (Removed to prevent conflicts)
+    // 'ai-functions.php',
+    // 'ai-chat-fixed.php',
+    // 'ai-assistant-enhanced.php',
     
     // Performance optimization
     'performance-optimization.php', // パフォーマンス最適化（v9.2.0+）
@@ -384,8 +390,8 @@ $required_files = array(
     // Grant Amount Fixer (v1.0.0+) - NEW: 助成金額修正ツール
     'grant-amount-fixer.php',  // 日付シリアル値を正しい金額に一括修正
     
-    // AI Assistant Enhanced (v2.0.0+) - NEW: AIアシスタント完全版実装
-    'ai-assistant-enhanced.php',  // AIアシスタント完全版（リアルタイムチャット、診断フロー、ロードマップ生成）
+    // AI Assistant Enhanced (v2.0.0+) - DEPRECATED: Merged into ai-assistant-core.php
+    // 'ai-assistant-enhanced.php',  // AIアシスタント完全版（リアルタイムチャット、診断フロー、ロードマップ生成）
 );
 
 // ファイルを安全に読み込み
