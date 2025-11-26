@@ -43,7 +43,8 @@ function gi_handle_ai_chat_request() {
     $nonce_check = wp_verify_nonce($_POST['nonce'], 'gi_ai_nonce');
     error_log('Nonce verification result: ' . var_export($nonce_check, true));
     
-    if (!$nonce_check) {
+    // wp_verify_nonce returns: false (0), 1 (valid), or 2 (valid within 12h)
+    if ($nonce_check === false || $nonce_check === 0) {
         error_log('❌ Nonce verification failed');
         wp_send_json_error(array(
             'message' => 'セキュリティチェックに失敗しました。ページを再読み込みしてください。',
