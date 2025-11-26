@@ -710,8 +710,24 @@ ul, ol { list-style: none; }
 /* チェックリスト */
 .gi-checklist { border: 2px solid var(--gi-black); background: var(--gi-white); }
 .gi-checklist-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; background: var(--gi-black); color: var(--gi-white); }
-.gi-checklist-title { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 900; }
-.gi-checklist-title svg { width: 24px; height: 24px; }
+.gi-checklist-title { 
+    display: flex !important; 
+    align-items: center !important; 
+    gap: 12px !important; 
+    font-size: 18px !important; 
+    font-weight: 900 !important; 
+    color: #ffffff !important;
+    margin: 0 !important;
+}
+.gi-checklist-title svg { 
+    width: 24px !important; 
+    height: 24px !important; 
+    color: #ffffff !important;
+}
+.gi-checklist-header h2.gi-checklist-title {
+    color: #ffffff !important;
+    background: transparent !important;
+}
 .gi-checklist-actions { display: flex; gap: 8px; }
 .gi-checklist-action { padding: 8px 12px; background: rgba(255,255,255,0.1); color: var(--gi-white); font-size: 12px; font-weight: 600; transition: var(--gi-transition); }
 .gi-checklist-action:hover { background: var(--gi-accent); color: var(--gi-black); }
@@ -722,8 +738,21 @@ ul, ol { list-style: none; }
 .gi-checklist-progress-percent { font-weight: 700; color: var(--gi-black); }
 .gi-checklist-category { border-bottom: 1px solid var(--gi-gray-200); }
 .gi-checklist-category:last-child { border-bottom: none; }
-.gi-checklist-category-header { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: #333 !important; font-size: 14px; font-weight: 700; color: #fff !important; }
-.gi-checklist .gi-checklist-category-header { color: #ffffff !important; }
+.gi-checklist-category-header { 
+    display: flex !important; 
+    align-items: center !important; 
+    gap: 8px !important; 
+    padding: 12px 24px !important; 
+    background: #333 !important; 
+    font-size: 14px !important; 
+    font-weight: 700 !important; 
+    color: #ffffff !important; 
+    border: none !important;
+}
+.gi-checklist .gi-checklist-category-header { 
+    color: #ffffff !important; 
+    background-color: #333 !important;
+}
 .gi-checklist-items { padding: 0; }
 .gi-checklist-item { display: flex; align-items: flex-start; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--gi-gray-100); cursor: pointer; transition: var(--gi-transition); background: var(--gi-white); }
 .gi-checklist-item:last-child { border-bottom: none; }
@@ -1232,8 +1261,8 @@ ul, ol { list-style: none; }
                 <section class="gi-section" id="checklist" aria-labelledby="checklist-title">
                     <div class="gi-checklist">
                         <header class="gi-checklist-header">
-                            <h2 class="gi-checklist-title" id="checklist-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            <h2 class="gi-checklist-title" id="checklist-title" style="color: #ffffff !important; margin: 0 !important;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffffff !important;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                                 申請前チェックリスト
                             </h2>
                             <div class="gi-checklist-actions">
@@ -1259,7 +1288,7 @@ ul, ol { list-style: none; }
                             $cat_info = isset($checklist_categories[$cat_key]) ? $checklist_categories[$cat_key] : array('label' => $cat_key);
                         ?>
                         <div class="gi-checklist-category">
-                            <div class="gi-checklist-category-header"><?php echo esc_html($cat_info['label']); ?></div>
+                            <div class="gi-checklist-category-header" style="color: #ffffff !important; background: #333 !important;"><?php echo esc_html($cat_info['label']); ?></div>
                             <div class="gi-checklist-items">
                                 <?php foreach ($items as $item): ?>
                                 <div class="gi-checklist-item" data-id="<?php echo esc_attr($item['id']); ?>" data-required="<?php echo $item['required'] ? 'true' : 'false'; ?>">
