@@ -684,7 +684,8 @@ ul, ol { list-style: none; }
 .gi-details-group { margin-bottom: 24px; }
 .gi-details-group:last-child { margin-bottom: 0; }
 .gi-details-group-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--gi-black); color: var(--gi-white); font-size: 14px; font-weight: 700; }
-.gi-details-group-icon { font-size: 18px; }
+.gi-details-group-icon { display: inline-flex; align-items: center; justify-content: center; }
+.gi-details-group-icon svg { width: 18px; height: 18px; }
 
 /* テーブル */
 .gi-table { width: 100%; border: 1px solid var(--gi-gray-200); border-top: none; }
@@ -732,10 +733,10 @@ ul, ol { list-style: none; }
 .gi-checklist-checkbox svg { width: 14px; height: 14px; color: var(--gi-white); opacity: 0; }
 .gi-checklist-item.checked .gi-checklist-checkbox svg { opacity: 1; }
 .gi-checklist-content { flex: 1; min-width: 0; }
-.gi-checklist-label { font-size: 16px; font-weight: 600; color: var(--gi-black); margin-bottom: 4px; }
+.gi-checklist-label { font-size: 16px; font-weight: 600; color: var(--gi-black); margin-bottom: 4px; line-height: 1.5; word-wrap: break-word; overflow-wrap: break-word; }
 .gi-checklist-item.checked .gi-checklist-label { color: var(--gi-success-text); }
-.gi-checklist-desc { font-size: 14px; color: var(--gi-gray-600); margin-bottom: 4px; }
-.gi-checklist-help { display: none; font-size: 14px; color: var(--gi-gray-700); padding: 12px; background: var(--gi-gray-100); margin-top: 8px; border-left: 3px solid var(--gi-gray-400); }
+.gi-checklist-desc { font-size: 14px; color: var(--gi-gray-600); margin-bottom: 4px; line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
+.gi-checklist-help { display: none; font-size: 14px; color: var(--gi-gray-700); padding: 12px; background: var(--gi-gray-100); margin-top: 8px; border-left: 3px solid var(--gi-gray-400); line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
 .gi-checklist-item.show-help .gi-checklist-help { display: block; }
 .gi-checklist-required { display: inline-block; padding: 2px 8px; background: var(--gi-error); color: var(--gi-white); font-size: 11px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
 .gi-checklist-optional { display: inline-block; padding: 2px 8px; background: var(--gi-gray-400); color: var(--gi-white); font-size: 11px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
@@ -1098,7 +1099,7 @@ ul, ol { list-style: none; }
                     
                     <!-- 金額・補助率 -->
                     <div class="gi-details-group">
-                        <div class="gi-details-group-header"><span class="gi-details-group-icon">💰</span>金額・補助率</div>
+                        <div class="gi-details-group-header"><span class="gi-details-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>金額・補助率</div>
                         <div class="gi-table">
                             <?php if ($amount_display): ?>
                             <div class="gi-table-row">
@@ -1117,7 +1118,7 @@ ul, ol { list-style: none; }
                     
                     <!-- スケジュール -->
                     <div class="gi-details-group">
-                        <div class="gi-details-group-header"><span class="gi-details-group-icon">📅</span>スケジュール</div>
+                        <div class="gi-details-group-header"><span class="gi-details-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>スケジュール</div>
                         <div class="gi-table">
                             <?php if ($deadline_info): ?>
                             <div class="gi-table-row">
@@ -1139,7 +1140,7 @@ ul, ol { list-style: none; }
                     
                     <!-- 対象要件 -->
                     <div class="gi-details-group">
-                        <div class="gi-details-group-header"><span class="gi-details-group-icon">🎯</span>対象要件</div>
+                        <div class="gi-details-group-header"><span class="gi-details-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>対象要件</div>
                         <div class="gi-table">
                             <?php if ($grant['organization']): ?>
                             <div class="gi-table-row">
@@ -1191,7 +1192,7 @@ ul, ol { list-style: none; }
                     
                     <!-- 申請要件 -->
                     <div class="gi-details-group">
-                        <div class="gi-details-group-header"><span class="gi-details-group-icon">📄</span>申請要件</div>
+                        <div class="gi-details-group-header"><span class="gi-details-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>申請要件</div>
                         <div class="gi-table">
                             <?php if ($docs): ?>
                             <div class="gi-table-row">
@@ -1871,7 +1872,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var CONFIG = {
         postId: <?php echo $post_id; ?>,
         ajaxUrl: '<?php echo admin_url("admin-ajax.php"); ?>',
-        nonce: '<?php echo wp_create_nonce("gi_nonce"); ?>',
+        nonce: '<?php echo wp_create_nonce("gi_ai_nonce"); ?>',
         url: '<?php echo esc_js($canonical_url); ?>',
         title: <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
         totalChecklist: <?php echo count($checklist_items); ?>

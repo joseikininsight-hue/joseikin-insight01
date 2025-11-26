@@ -382,6 +382,9 @@ $required_files = array(
     
     // Grant Amount Fixer (v1.0.0+) - NEW: 助成金額修正ツール
     'grant-amount-fixer.php',  // 日付シリアル値を正しい金額に一括修正
+    
+    // AI Assistant Enhanced (v2.0.0+) - NEW: AIアシスタント完全版実装
+    'ai-assistant-enhanced.php',  // AIアシスタント完全版（リアルタイムチャット、診断フロー、ロードマップ生成）
 );
 
 // ファイルを安全に読み込み
