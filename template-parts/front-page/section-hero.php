@@ -1,727 +1,737 @@
 <?php
 /**
- * Hero Section - Vertically Centered Ultimate Version
- * ヒーローセクション - 縦方向中央配置・SEO/UI/UX完全最適化版
- * * @package Grant_Insight_Perfect
- * @version 40.0-centered-ultimate
+ * Hero Section - Complete SEO/E-E-A-T/UX Optimized Version
+ * ヒーローセクション - 完全最適化版
+ *
+ * @package Grant_Insight_Perfect
+ * @version 51.0.0 - Production Ready
  */
 
 if (!defined('ABSPATH')) {
     exit('Direct access forbidden.');
 }
 
-// 安全な出力用関数
-if (!function_exists('gih_safe_output')) {
-    function gih_safe_output($text) {
-        return esc_html($text);
-    }
-}
-
-// オプション取得用関数
-if (!function_exists('gih_get_option')) {
-    function gih_get_option($key, $default = '') {
-        $value = get_option('gih_' . $key, $default);
-        return !empty($value) ? $value : $default;
-    }
-}
-
+// ==========================================================================
 // 設定値
-$hero_config = array(
-    'main_title' => gih_get_option('hero_main_title', '補助金・助成金を'),
-    'sub_title' => gih_get_option('hero_sub_title', 'AIが効率的に検索'),
-    'description' => gih_get_option('hero_description', 'あなたのビジネスに最適な補助金・助成金情報を、最新AIテクノロジーで効率的に検索。専門家による申請サポートで成功まで導きます。'),
-    'cta_primary_text' => gih_get_option('hero_cta_primary', '無料で助成金を探す'),
-    'cta_primary_url' => esc_url(home_url('/grants/')),
-    'cta_secondary_text' => gih_get_option('hero_cta_secondary', '無料診断はこちら'),
-    'cta_secondary_url' => esc_url('https://joseikin-insight.com/subsidy-diagnosis/'),
-    'hero_image' => esc_url('https://joseikin-insight.com/1-3/'), // 仮画像URL
-    'site_name' => get_bloginfo('name'),
-    'site_url' => home_url(),
-    'site_description' => get_bloginfo('description')
-);
+// ==========================================================================
+$hero_config = [
+    // テキスト
+    'tagline'           => '補助金・助成金の検索を、もっとシンプルに。',
+    'main_title'        => '補助金・助成金を',
+    'sub_title'         => 'AIで効率的に検索',
+    'description'       => '全国10,000件以上の補助金・助成金情報から、あなたのビジネスに最適な制度をAIが瞬時にマッチング。専門家監修の信頼できる情報で、申請までサポートします。',
+    
+    // CTA
+    'cta_primary_text'  => '今すぐ補助金を探す',
+    'cta_primary_url'   => home_url('/grants/'),
+    'cta_secondary_text'=> '3分で無料診断',
+    'cta_secondary_url' => 'https://joseikin-insight.com/subsidy-diagnosis/',
+    
+    // 統計（E-E-A-T強化）
+    'stats' => [
+        [
+            'number' => '10,000',
+            'suffix' => '件+',
+            'label'  => '掲載補助金数'
+        ],
+        [
+            'number' => '47',
+            'suffix' => '都道府県',
+            'label'  => '全国対応'
+        ],
+        [
+            'number' => '毎日',
+            'suffix' => '',
+            'label'  => '情報更新'
+        ]
+    ],
+    
+    // 特徴
+    'features' => [
+        [
+            'text' => '経済産業省・中小企業庁の公式データを収集',
+            'emphasis' => false
+        ],
+        [
+            'text' => '中小企業診断士による情報監修',
+            'emphasis' => true
+        ],
+        [
+            'text' => '会員登録不要・完全無料で利用可能',
+            'emphasis' => false
+        ]
+    ],
+    
+    // 画像
+    'hero_image'        => 'https://joseikin-insight.com/1-3/',
+    'hero_image_alt'    => '補助金検索システムのダッシュボード画面',
+    'hero_image_width'  => 800,
+    'hero_image_height' => 600,
+];
 
-// 構造化データ生成
-$schema_web_app = array(
-    '@context' => 'https://schema.org',
-    '@type' => 'WebApplication',
-    'name' => '補助金インサイト - AI補助金検索システム',
-    'applicationCategory' => 'BusinessApplication',
-    'description' => '全国の補助金・助成金情報をAIが効率的に検索。業種別・地域別対応で最適な制度を発見できる無料プラットフォーム。',
-    'url' => $hero_config['site_url'],
-    'operatingSystem' => 'Web Browser',
-    'offers' => array(
-        '@type' => 'Offer',
-        'price' => '0',
-        'priceCurrency' => 'JPY',
-        'availability' => 'https://schema.org/InStock'
-    ),
-    'provider' => array(
-        '@type' => 'Organization',
-        'name' => $hero_config['site_name'],
-        'url' => $hero_config['site_url']
-    )
-);
-
-$schema_organization = array(
-    '@context' => 'https://schema.org',
-    '@type' => 'Organization',
-    'name' => $hero_config['site_name'],
-    'url' => $hero_config['site_url'],
-    'description' => '補助金・助成金情報をAIで効率的に検索できるプラットフォーム。専門家による申請サポートを提供。',
-    'contactPoint' => array(
-        '@type' => 'ContactPoint',
-        'contactType' => 'customer support',
-        'availableLanguage' => array('ja', 'Japanese')
-    )
-);
-
-$schema_breadcrumb = array(
-    '@context' => 'https://schema.org',
-    '@type' => 'BreadcrumbList',
-    'itemListElement' => array(
-        array(
-            '@type' => 'ListItem',
-            'position' => 1,
-            'name' => 'ホーム',
-            'item' => $hero_config['site_url']
-        )
-    )
-);
-
-$schema_website = array(
-    '@context' => 'https://schema.org',
-    '@type' => 'WebSite',
-    'name' => $hero_config['site_name'],
-    'url' => $hero_config['site_url'],
-    'potentialAction' => array(
-        '@type' => 'SearchAction',
-        'target' => array(
-            '@type' => 'EntryPoint',
-            'urlTemplate' => $hero_config['site_url'] . '/grants/?search={search_term_string}'
-        ),
-        'query-input' => 'required name=search_term_string'
-    )
-);
+// 動的データ取得
+$total_grants = wp_count_posts('grant')->publish ?? 0;
+if ($total_grants > 0) {
+    $hero_config['stats'][0]['number'] = number_format($total_grants);
+    $hero_config['stats'][0]['suffix'] = '件';
+}
 ?>
 
-<meta name="description" content="補助金・助成金をAIが効率的に検索｜業種別・地域別対応、専門家による申請サポート完備。完全無料で今すぐ検索開始。">
-<meta name="keywords" content="補助金,助成金,AI検索,事業支援,申請サポート,無料検索,ビジネス支援">
-<meta name="author" content="<?php echo esc_attr($hero_config['site_name']); ?>">
-<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-<link rel="canonical" href="<?php echo esc_url($hero_config['site_url']); ?>">
-
-<meta property="og:type" content="website">
-<meta property="og:title" content="補助金・助成金をAIが効率的に検索 | <?php echo esc_attr($hero_config['site_name']); ?>">
-<meta property="og:description" content="あなたのビジネスに最適な補助金・助成金を発見。専門家による充実したサポートで成功まで導きます。完全無料。">
-<meta property="og:url" content="<?php echo esc_url($hero_config['site_url']); ?>">
-<meta property="og:image" content="<?php echo esc_url($hero_config['hero_image']); ?>">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="800">
-<meta property="og:site_name" content="<?php echo esc_attr($hero_config['site_name']); ?>">
-<meta property="og:locale" content="ja_JP">
-
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="補助金・助成金をAIが効率的に検索">
-<meta name="twitter:description" content="あなたのビジネスに最適な補助金・助成金を発見。専門家サポート完備。完全無料。">
-<meta name="twitter:image" content="<?php echo esc_url($hero_config['hero_image']); ?>">
-
-<script type="application/ld+json">
-<?php echo wp_json_encode($schema_web_app, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
-</script>
-<script type="application/ld+json">
-<?php echo wp_json_encode($schema_organization, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
-</script>
-<script type="application/ld+json">
-<?php echo wp_json_encode($schema_breadcrumb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
-</script>
-<script type="application/ld+json">
-<?php echo wp_json_encode($schema_website, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
-</script>
-
-<main id="main-content" role="main" itemscope itemtype="https://schema.org/WebPage">
+<section 
+    class="hero" 
+    id="hero-section" 
+    role="banner" 
+    aria-labelledby="hero-heading"
+    itemscope 
+    itemtype="https://schema.org/WPHeader">
     
-    <section class="gih-hero-section" 
-             id="hero-section" 
-             role="banner" 
-             aria-labelledby="hero-main-heading">
-        
-        <div class="gih-container">
+    <!-- 背景パターン -->
+    <div class="hero__bg" aria-hidden="true">
+        <div class="hero__grid-pattern"></div>
+    </div>
+    
+    <div class="hero__container">
+        <div class="hero__content">
             
-            <div class="gih-desktop-layout">
-                <div class="gih-content-grid">
-                    
-                    <article class="gih-content-left">
-                        
-                        <h1 class="gih-title" id="hero-main-heading" itemprop="headline">
-                            <span class="gih-title-main">
-                                <?php echo gih_safe_output($hero_config['main_title']); ?>
-                            </span>
-                            <span class="gih-title-highlight">
-                                <?php echo gih_safe_output($hero_config['sub_title']); ?>
-                            </span>
-                        </h1>
-                        
-                        <p class="gih-description" itemprop="description">
-                            <?php echo gih_safe_output($hero_config['description']); ?>
-                        </p>
-                        
-                        <ul class="gih-features" aria-label="主な特徴">
-                            <li class="gih-feature-item">
-                                <svg class="gih-feature-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
-                                </svg>
-                                <span>全国の補助金・助成金を網羅</span>
-                            </li>
-                            <li class="gih-feature-item">
-                                <svg class="gih-feature-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
-                                </svg>
-                                <span>業種別・地域別の最適マッチング</span>
-                            </li>
-                            <li class="gih-feature-item">
-                                <svg class="gih-feature-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
-                                </svg>
-                                <span>専門家による申請サポート</span>
-                            </li>
-                        </ul>
-                        
-                        <div class="gih-cta-group">
-                            <a href="<?php echo esc_url($hero_config['cta_primary_url']); ?>" 
-                               class="gih-btn gih-btn-primary"
-                               aria-label="無料で助成金を探す">
-                                <svg class="gih-btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                    <path d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" fill="currentColor"/>
-                                </svg>
-                                <span><?php echo gih_safe_output($hero_config['cta_primary_text']); ?></span>
-                            </a>
-                            
-                            <a href="<?php echo esc_url($hero_config['cta_secondary_url']); ?>" 
-                               class="gih-btn gih-btn-secondary"
-                               aria-label="無料診断を受ける">
-                                <svg class="gih-btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" fill="currentColor"/>
-                                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" fill="currentColor"/>
-                                </svg>
-                                <span><?php echo gih_safe_output($hero_config['cta_secondary_text']); ?></span>
-                            </a>
-                        </div>
-                    </article>
-                    
-                    <aside class="gih-content-right" aria-label="システムイメージ">
-                        <figure class="gih-image-wrapper">
-                            <img src="<?php echo esc_url($hero_config['hero_image']); ?>" 
-                                 alt="補助金・助成金AI検索システムのインターフェース"
-                                 class="gih-hero-image"
-                                 width="1200"
-                                 height="800"
-                                 loading="eager"
-                                 fetchpriority="high"
-                                 decoding="async"
-                                 itemprop="image">
-                        </figure>
-                    </aside>
-                </div>
-            </div>
-            
-            <div class="gih-mobile-layout">
+            <!-- 左カラム: テキストコンテンツ -->
+            <div class="hero__text">
                 
-                <h1 class="gih-mobile-title" itemprop="headline">
-                    <span class="gih-mobile-title-main">
-                        <?php echo gih_safe_output($hero_config['main_title']); ?>
+                <!-- タグライン -->
+                <p class="hero__tagline" itemprop="alternativeHeadline">
+                    <?php echo esc_html($hero_config['tagline']); ?>
+                </p>
+                
+                <!-- メインタイトル -->
+                <h1 class="hero__title" id="hero-heading" itemprop="headline">
+                    <span class="hero__title-main">
+                        <?php echo esc_html($hero_config['main_title']); ?>
                     </span>
-                    <span class="gih-mobile-title-highlight">
-                        <?php echo gih_safe_output($hero_config['sub_title']); ?>
+                    <span class="hero__title-accent">
+                        <?php echo esc_html($hero_config['sub_title']); ?>
                     </span>
                 </h1>
                 
-                <p class="gih-mobile-description" itemprop="description">
-                    最新AIテクノロジーがあなたのビジネスに最適な補助金・助成金を効率的に検索。専門家による充実したサポートで成功まで導きます。
+                <!-- 説明文 -->
+                <p class="hero__description" itemprop="description">
+                    <?php echo esc_html($hero_config['description']); ?>
                 </p>
                 
-                <ul class="gih-mobile-features" aria-label="主な特徴">
-                    <li class="gih-mobile-feature-item">
-                        <svg class="gih-mobile-feature-icon" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
+                <!-- 特徴リスト（E-E-A-T強化） -->
+                <ul class="hero__features" aria-label="サービスの特徴">
+                    <?php foreach ($hero_config['features'] as $feature): ?>
+                    <li class="hero__feature<?php echo $feature['emphasis'] ? ' hero__feature--emphasis' : ''; ?>">
+                        <svg class="hero__feature-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <circle cx="10" cy="10" r="10" fill="currentColor" opacity="0.1"/>
+                            <path d="M6 10l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                         </svg>
-                        <span>全国の補助金・助成金を網羅</span>
+                        <span><?php echo esc_html($feature['text']); ?></span>
                     </li>
-                    <li class="gih-mobile-feature-item">
-                        <svg class="gih-mobile-feature-icon" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
-                        </svg>
-                        <span>業種・地域別マッチング</span>
-                    </li>
-                    <li class="gih-mobile-feature-item">
-                        <svg class="gih-mobile-feature-icon" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
-                        </svg>
-                        <span>専門家サポート完備</span>
-                    </li>
+                    <?php endforeach; ?>
                 </ul>
                 
-                <figure class="gih-mobile-image">
-                    <img src="<?php echo esc_url($hero_config['hero_image']); ?>" 
-                         alt="補助金・助成金AI検索システム"
-                         width="800"
-                         height="600"
-                         loading="eager"
-                         fetchpriority="high"
-                         decoding="async"
-                         itemprop="image">
-                </figure>
-                
-                <div class="gih-mobile-cta-group">
-                    <a href="<?php echo esc_url($hero_config['cta_primary_url']); ?>" 
-                       class="gih-mobile-btn gih-mobile-btn-primary"
-                       aria-label="無料で助成金を探す">
-                        <svg class="gih-mobile-btn-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <!-- CTA エリア -->
+                <div class="hero__cta">
+                    <!-- プライマリCTA -->
+                    <a 
+                        href="<?php echo esc_url($hero_config['cta_primary_url']); ?>" 
+                        class="hero__btn hero__btn--primary"
+                        aria-label="<?php echo esc_attr($hero_config['cta_primary_text']); ?> - 補助金検索ページへ移動">
+                        <svg class="hero__btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                             <path d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" fill="currentColor"/>
                         </svg>
-                        <span><?php echo gih_safe_output($hero_config['cta_primary_text']); ?></span>
+                        <span><?php echo esc_html($hero_config['cta_primary_text']); ?></span>
+                        <svg class="hero__btn-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
                     </a>
                     
-                    <a href="<?php echo esc_url($hero_config['cta_secondary_url']); ?>" 
-                       class="gih-mobile-btn gih-mobile-btn-secondary"
-                       aria-label="無料診断を受ける">
-                        <svg class="gih-mobile-btn-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" fill="currentColor"/>
-                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" fill="currentColor"/>
-                        </svg>
-                        <span><?php echo gih_safe_output($hero_config['cta_secondary_text']); ?></span>
-                    </a>
+                    <!-- セカンダリCTA（テキストリンク） -->
+                    <p class="hero__sub-cta">
+                        または 
+                        <a 
+                            href="<?php echo esc_url($hero_config['cta_secondary_url']); ?>"
+                            class="hero__sub-cta-link"
+                            aria-label="<?php echo esc_attr($hero_config['cta_secondary_text']); ?> - 補助金診断ページへ移動">
+                            <?php echo esc_html($hero_config['cta_secondary_text']); ?>
+                        </a>
+                        を受ける
+                    </p>
                 </div>
+                
+                <!-- 統計バー（E-E-A-T強化） -->
+                <div class="hero__stats" role="list" aria-label="サービス実績">
+                    <?php foreach ($hero_config['stats'] as $stat): ?>
+                    <div class="hero__stat" role="listitem">
+                        <span class="hero__stat-number">
+                            <?php echo esc_html($stat['number']); ?>
+                            <?php if ($stat['suffix']): ?>
+                            <span class="hero__stat-suffix"><?php echo esc_html($stat['suffix']); ?></span>
+                            <?php endif; ?>
+                        </span>
+                        <span class="hero__stat-label"><?php echo esc_html($stat['label']); ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                
             </div>
+            
+            <!-- 右カラム: ビジュアル -->
+            <div class="hero__visual">
+                <figure class="hero__image-wrapper">
+                    <img 
+                        src="<?php echo esc_url($hero_config['hero_image']); ?>" 
+                        alt="<?php echo esc_attr($hero_config['hero_image_alt']); ?>"
+                        class="hero__image"
+                        width="<?php echo esc_attr($hero_config['hero_image_width']); ?>"
+                        height="<?php echo esc_attr($hero_config['hero_image_height']); ?>"
+                        loading="eager"
+                        fetchpriority="high"
+                        decoding="async"
+                        itemprop="image">
+                    
+                    <!-- 装飾要素 -->
+                    <div class="hero__image-decoration" aria-hidden="true">
+                        <div class="hero__decoration-dot hero__decoration-dot--1"></div>
+                        <div class="hero__decoration-dot hero__decoration-dot--2"></div>
+                        <div class="hero__decoration-line"></div>
+                    </div>
+                </figure>
+            </div>
+            
         </div>
-    </section>
+    </div>
     
-</main>
+    <!-- スクロールインジケーター -->
+    <div class="hero__scroll" aria-hidden="true">
+        <span class="hero__scroll-text">Scroll</span>
+        <div class="hero__scroll-line"></div>
+    </div>
+    
+</section>
 
 <style>
-/* ============================================
-   Hero Section - Vertically Centered Ultimate
-   v40.0-centered-ultimate
-   ============================================ */
+/* ==========================================================================
+   Hero Section - Design System v51.0
+   ========================================================================== */
 
-:root {
-    --color-primary: #000000;
-    --color-secondary: #ffffff;
-    --color-accent: #ffeb3b;
-    --color-accent-hover: #ffc107;
-    --color-text-primary: #000000;
-    --color-text-secondary: #666666;
-    --color-border: #e5e5e5;
-    --font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
-    --transition: 0.3s ease;
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.15);
+.hero {
+    --hero-color-black: #111111;
+    --hero-color-white: #ffffff;
+    --hero-color-gray-900: #1a1a1a;
+    --hero-color-gray-700: #404040;
+    --hero-color-gray-500: #666666;
+    --hero-color-gray-300: #999999;
+    --hero-color-gray-100: #e5e5e5;
+    --hero-color-gray-50: #f8f9fa;
+    
+    --hero-font-sans: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --hero-font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    
+    --hero-space-1: 4px;
+    --hero-space-2: 8px;
+    --hero-space-3: 12px;
+    --hero-space-4: 16px;
+    --hero-space-5: 20px;
+    --hero-space-6: 24px;
+    --hero-space-8: 32px;
+    --hero-space-10: 40px;
+    --hero-space-12: 48px;
+    --hero-space-16: 64px;
+    --hero-space-20: 80px;
+    
+    --hero-container-max: 1200px;
+    --hero-header-height: 56px;
+    
+    --hero-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --hero-transition-slow: 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    --hero-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --hero-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-/* Base Settings - Centered */
-.gih-hero-section {
+.hero {
     position: relative;
-    background: #ffffff;
-    font-family: var(--font-family);
-    overflow: hidden;
-    min-height: calc(100vh - 56px);
+    min-height: calc(100vh - var(--hero-header-height));
+    min-height: calc(100dvh - var(--hero-header-height));
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 60px 0;
+    background: var(--hero-color-white);
+    font-family: var(--hero-font-sans);
+    color: var(--hero-color-black);
+    overflow: hidden;
+    padding: var(--hero-space-16) 0;
 }
 
-/* Grid Pattern Background */
-.gih-hero-section::before {
-    content: '';
+.hero__bg {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-image: 
-        linear-gradient(0deg, rgba(0,0,0,.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,.02) 1px, transparent 1px);
-    background-size: 20px 20px;
+    inset: 0;
     pointer-events: none;
+    z-index: 0;
+}
+
+.hero__grid-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        linear-gradient(to right, var(--hero-color-gray-100) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--hero-color-gray-100) 1px, transparent 1px);
+    background-size: 40px 40px;
     opacity: 0.5;
-    z-index: 1;
 }
 
-.gih-container {
+.hero__container {
     position: relative;
-    z-index: 10;
+    z-index: 1;
     width: 100%;
-    max-width: 1200px;
+    max-width: var(--hero-container-max);
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 var(--hero-space-6);
 }
 
-/* Desktop Layout */
-.gih-desktop-layout {
-    display: none;
+.hero__content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--hero-space-12);
+    align-items: center;
 }
 
 @media (min-width: 1024px) {
-    .gih-desktop-layout {
-        display: block;
+    .hero__content {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--hero-space-16);
     }
 }
 
-.gih-content-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 60px;
-    align-items: center;
-}
-
-/* Left Content */
-.gih-content-left {
+.hero__text {
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: var(--hero-space-6);
 }
 
-/* Title */
-.gih-title {
+.hero__tagline {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--hero-color-gray-500);
     margin: 0;
-    line-height: 1.2;
 }
 
-.gih-title-main {
-    display: block;
-    font-size: 28px;
-    font-weight: 400;
-    color: var(--color-text-secondary);
-    margin-bottom: 8px;
-}
-
-.gih-title-highlight {
-    display: block;
-    font-size: 48px;
-    font-weight: 900;
-    color: var(--color-primary);
-    position: relative;
+.hero__title {
+    margin: 0;
     line-height: 1.1;
 }
 
-.gih-title-highlight::after {
+.hero__title-main {
+    display: block;
+    font-size: clamp(24px, 5vw, 32px);
+    font-weight: 400;
+    color: var(--hero-color-gray-700);
+    margin-bottom: var(--hero-space-2);
+}
+
+.hero__title-accent {
+    display: block;
+    font-size: clamp(36px, 8vw, 56px);
+    font-weight: 900;
+    color: var(--hero-color-black);
+    letter-spacing: -0.02em;
+    position: relative;
+}
+
+.hero__title-accent::after {
     content: '';
     position: absolute;
-    bottom: 0;
+    bottom: 0.1em;
     left: 0;
     right: 0;
-    height: 12px;
-    background: var(--color-accent);
+    height: 0.2em;
+    background: linear-gradient(90deg, var(--hero-color-black) 0%, transparent 100%);
+    opacity: 0.1;
     z-index: -1;
 }
 
-/* Description */
-.gih-description {
+.hero__description {
     font-size: 16px;
-    line-height: 1.7;
-    color: var(--color-text-secondary);
-    font-weight: 400;
+    line-height: 1.8;
+    color: var(--hero-color-gray-700);
     margin: 0;
+    max-width: 540px;
 }
 
-/* Features */
-.gih-features {
+.hero__features {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--hero-space-3);
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
-.gih-feature-item {
+.hero__feature {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 15px;
-    color: var(--color-text-primary);
+    gap: var(--hero-space-3);
+    font-size: 14px;
+    color: var(--hero-color-gray-700);
     font-weight: 500;
 }
 
-.gih-feature-icon {
+.hero__feature--emphasis {
+    color: var(--hero-color-black);
+    font-weight: 700;
+}
+
+.hero__feature-icon {
     flex-shrink: 0;
-    color: var(--color-accent);
-    background: var(--color-primary);
-    border-radius: 50%;
-    padding: 3px;
+    color: var(--hero-color-black);
 }
 
-/* CTA Buttons */
-.gih-cta-group {
+.hero__cta {
     display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-top: 8px;
+    flex-direction: column;
+    gap: var(--hero-space-4);
+    margin-top: var(--hero-space-4);
 }
 
-.gih-btn {
+.hero__btn {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 16px 28px;
-    border-radius: 8px;
-    font-size: 15px;
+    justify-content: center;
+    gap: var(--hero-space-3);
+    padding: var(--hero-space-5) var(--hero-space-8);
+    border-radius: 4px;
+    font-size: 16px;
     font-weight: 700;
     text-decoration: none;
-    transition: all var(--transition);
-    box-shadow: var(--shadow-md);
+    transition: 
+        background var(--hero-transition),
+        transform var(--hero-transition),
+        box-shadow var(--hero-transition);
     cursor: pointer;
 }
 
-.gih-btn-primary {
-    background: var(--color-accent);
-    color: var(--color-primary);
-    border: 2px solid var(--color-accent);
+.hero__btn--primary {
+    background: var(--hero-color-black);
+    color: var(--hero-color-white);
+    box-shadow: var(--hero-shadow);
 }
 
-.gih-btn-primary:hover {
-    background: var(--color-accent-hover);
-    border-color: var(--color-accent-hover);
+.hero__btn--primary:hover {
+    background: var(--hero-color-gray-900);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--hero-shadow-lg);
 }
 
-.gih-btn-secondary {
-    background: var(--color-secondary);
-    color: var(--color-primary);
-    border: 2px solid var(--color-border);
+.hero__btn--primary:focus-visible {
+    outline: 3px solid var(--hero-color-black);
+    outline-offset: 3px;
 }
 
-.gih-btn-secondary:hover {
-    background: #f5f7fa;
-    border-color: var(--color-primary);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
-
-.gih-btn:active {
+.hero__btn--primary:active {
     transform: translateY(0);
 }
 
-.gih-btn:focus {
-    outline: 3px solid var(--color-accent);
-    outline-offset: 2px;
-}
-
-.gih-btn-icon {
+.hero__btn-icon {
     flex-shrink: 0;
 }
 
-/* Right Image */
-.gih-content-right {
-    position: relative;
+.hero__btn-arrow {
+    flex-shrink: 0;
+    transition: transform var(--hero-transition);
 }
 
-.gih-image-wrapper {
-    position: relative;
-    width: 100%;
+.hero__btn:hover .hero__btn-arrow {
+    transform: translateX(4px);
+}
+
+.hero__sub-cta {
+    font-size: 14px;
+    color: var(--hero-color-gray-500);
     margin: 0;
 }
 
-.gih-hero-image {
+.hero__sub-cta-link {
+    color: var(--hero-color-black);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: opacity var(--hero-transition);
+}
+
+.hero__sub-cta-link:hover {
+    opacity: 0.7;
+}
+
+.hero__sub-cta-link:focus-visible {
+    outline: 2px solid var(--hero-color-black);
+    outline-offset: 2px;
+}
+
+.hero__stats {
+    display: flex;
+    gap: var(--hero-space-8);
+    padding-top: var(--hero-space-8);
+    border-top: 1px solid var(--hero-color-gray-100);
+    margin-top: var(--hero-space-4);
+}
+
+.hero__stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hero-space-1);
+}
+
+.hero__stat-number {
+    font-family: var(--hero-font-mono);
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--hero-color-black);
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.hero__stat-suffix {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.hero__stat-label {
+    font-size: 12px;
+    color: var(--hero-color-gray-500);
+    font-weight: 500;
+}
+
+.hero__visual {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hero__image-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    margin: 0;
+}
+
+.hero__image {
     width: 100%;
     height: auto;
     display: block;
-    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: var(--hero-shadow-lg);
 }
 
-/* Mobile Layout */
-.gih-mobile-layout {
-    display: block;
-    text-align: center;
+.hero__image-decoration {
+    position: absolute;
+    inset: -20px;
+    pointer-events: none;
 }
 
-@media (min-width: 1024px) {
-    .gih-mobile-layout {
+.hero__decoration-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--hero-color-black);
+    border-radius: 50%;
+}
+
+.hero__decoration-dot--1 {
+    top: 0;
+    right: 0;
+}
+
+.hero__decoration-dot--2 {
+    bottom: 0;
+    left: 0;
+}
+
+.hero__decoration-line {
+    position: absolute;
+    top: 50%;
+    right: -40px;
+    width: 80px;
+    height: 1px;
+    background: var(--hero-color-gray-100);
+    transform: translateY(-50%);
+}
+
+.hero__scroll {
+    position: absolute;
+    bottom: var(--hero-space-8);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--hero-space-2);
+}
+
+.hero__scroll-text {
+    font-family: var(--hero-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--hero-color-gray-300);
+    text-transform: uppercase;
+}
+
+.hero__scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--hero-color-gray-300), transparent);
+    animation: hero-scroll-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hero-scroll-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scaleY(0.8);
+    }
+}
+
+/* Responsive */
+@media (max-width: 1023px) {
+    .hero {
+        min-height: auto;
+        padding: var(--hero-space-12) 0;
+    }
+    
+    .hero__content {
+        text-align: center;
+    }
+    
+    .hero__text {
+        align-items: center;
+    }
+    
+    .hero__description {
+        max-width: 100%;
+    }
+    
+    .hero__features {
+        align-items: center;
+    }
+    
+    .hero__stats {
+        justify-content: center;
+    }
+    
+    .hero__visual {
+        order: -1;
+    }
+    
+    .hero__image-wrapper {
+        max-width: 400px;
+    }
+    
+    .hero__decoration-line {
+        display: none;
+    }
+    
+    .hero__scroll {
         display: none;
     }
 }
 
-/* Mobile Title */
-.gih-mobile-title {
-    margin: 0 0 20px 0;
-    line-height: 1.2;
-}
-
-.gih-mobile-title-main {
-    display: block;
-    font-size: 24px;
-    font-weight: 400;
-    color: var(--color-text-secondary);
-    margin-bottom: 8px;
-}
-
-.gih-mobile-title-highlight {
-    display: block;
-    font-size: 36px;
-    font-weight: 900;
-    color: var(--color-primary);
-    position: relative;
-    line-height: 1.1;
-}
-
-.gih-mobile-title-highlight::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 10px;
-    background: var(--color-accent);
-    z-index: -1;
-}
-
-/* Mobile Description */
-.gih-mobile-description {
-    font-size: 15px;
-    line-height: 1.7;
-    color: var(--color-text-secondary);
-    margin: 0 0 24px 0;
-}
-
-/* Mobile Features */
-.gih-mobile-features {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    list-style: none;
-    margin: 0 0 24px 0;
-    padding: 0;
-    text-align: left;
-}
-
-.gih-mobile-feature-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    color: var(--color-text-primary);
-    font-weight: 500;
-}
-
-.gih-mobile-feature-icon {
-    flex-shrink: 0;
-    color: var(--color-accent);
-    background: var(--color-primary);
-    border-radius: 50%;
-    padding: 2px;
-}
-
-/* Mobile Image */
-.gih-mobile-image {
-    width: 100%;
-    margin: 24px 0;
-}
-
-.gih-mobile-image img {
-    width: 100%;
-    height: auto;
-    display: block;
-    object-fit: contain;
-}
-
-/* Mobile CTA */
-.gih-mobile-cta-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 24px;
-}
-
-.gih-mobile-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
-    padding: 16px 24px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 700;
-    text-decoration: none;
-    transition: all var(--transition);
-    box-shadow: var(--shadow-md);
-}
-
-.gih-mobile-btn-primary {
-    background: var(--color-accent);
-    color: var(--color-primary);
-    border: 2px solid var(--color-accent);
-}
-
-.gih-mobile-btn-primary:active {
-    transform: scale(0.98);
-    background: var(--color-accent-hover);
-}
-
-.gih-mobile-btn-secondary {
-    background: var(--color-secondary);
-    color: var(--color-primary);
-    border: 2px solid var(--color-border);
-}
-
-.gih-mobile-btn-secondary:active {
-    transform: scale(0.98);
-    background: #f5f7fa;
-}
-
-.gih-mobile-btn:focus {
-    outline: 3px solid var(--color-accent);
-    outline-offset: 2px;
-}
-
-.gih-mobile-btn-icon {
-    flex-shrink: 0;
-}
-
-/* Tablet Adjustments */
-@media (min-width: 768px) and (max-width: 1023px) {
-    .gih-hero-section {
-        min-height: calc(100vh - 56px);
-        padding: 80px 0;
-    }
-    .gih-mobile-title-main { font-size: 28px; }
-    .gih-mobile-title-highlight { font-size: 42px; }
-    .gih-mobile-description { font-size: 16px; }
-}
-
-/* Small Mobile */
 @media (max-width: 640px) {
-    .gih-hero-section {
-        min-height: auto;
-        padding: 60px 0;
+    .hero {
+        padding: var(--hero-space-10) 0;
     }
-    .gih-container { padding: 0 16px; }
-    .gih-mobile-title-main { font-size: 22px; }
-    .gih-mobile-title-highlight { font-size: 32px; }
-    .gih-mobile-description { font-size: 14px; }
-}
-
-/* Large Desktop */
-@media (min-width: 1400px) {
-    .gih-content-grid { gap: 80px; }
-    .gih-title-main { font-size: 32px; }
-    .gih-title-highlight { font-size: 56px; }
-    .gih-description { font-size: 18px; }
-}
-
-/* Short Viewport */
-@media (max-height: 700px) and (min-width: 1024px) {
-    .gih-hero-section {
-        min-height: auto;
-        padding: 80px 0;
+    
+    .hero__container {
+        padding: 0 var(--hero-space-4);
+    }
+    
+    .hero__tagline {
+        font-size: 12px;
+    }
+    
+    .hero__description {
+        font-size: 14px;
+    }
+    
+    .hero__feature {
+        font-size: 13px;
+    }
+    
+    .hero__btn {
+        width: 100%;
+        padding: var(--hero-space-4) var(--hero-space-6);
+        font-size: 15px;
+    }
+    
+    .hero__stats {
+        flex-wrap: wrap;
+        gap: var(--hero-space-6);
+        justify-content: center;
+    }
+    
+    .hero__stat {
+        min-width: 80px;
+        align-items: center;
+    }
+    
+    .hero__stat-number {
+        font-size: 20px;
+    }
+    
+    .hero__image-wrapper {
+        max-width: 320px;
+    }
+    
+    .hero__image-decoration {
+        display: none;
     }
 }
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
-    * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+    .hero__btn,
+    .hero__btn-arrow,
+    .hero__sub-cta-link {
+        transition: none;
+    }
+    
+    .hero__scroll-line {
+        animation: none;
+    }
+}
+
+@media (prefers-contrast: high) {
+    .hero__btn--primary {
+        border: 2px solid var(--hero-color-white);
+    }
+}
+
+.hero a:focus-visible,
+.hero button:focus-visible {
+    outline: 3px solid var(--hero-color-black);
+    outline-offset: 3px;
+}
+
+/* Print */
+@media print {
+    .hero {
+        min-height: auto;
+        padding: 20px 0;
+        background: white;
+    }
+    
+    .hero__bg,
+    .hero__scroll,
+    .hero__image-decoration {
+        display: none;
+    }
+    
+    .hero__btn--primary {
+        border: 2px solid black;
+        background: white;
+        color: black;
     }
 }
 </style>
@@ -730,69 +740,98 @@ $schema_website = array(
 (function() {
     'use strict';
     
-    class GrantHeroSystem {
-        constructor() {
-            this.init();
-        }
+    const init = () => {
+        setupImageLoading();
+        setupScrollIndicator();
+        setupCTATracking();
+        setupKeyboardNavigation();
+    };
+    
+    const setupImageLoading = () => {
+        const heroImage = document.querySelector('.hero__image');
+        if (!heroImage) return;
         
-        init() {
-            this.setupImageOptimization();
-            this.setupAccessibility();
-            this.setupCTATracking();
-            console.log('[✓] Hero System v40.0 - Initialized');
+        if (heroImage.complete) {
+            heroImage.classList.add('is-loaded');
+        } else {
+            heroImage.addEventListener('load', () => {
+                heroImage.classList.add('is-loaded');
+            }, { once: true });
         }
+    };
+    
+    const setupScrollIndicator = () => {
+        const scrollIndicator = document.querySelector('.hero__scroll');
+        if (!scrollIndicator) return;
         
-        setupImageOptimization() {
-            const images = document.querySelectorAll('.gih-hero-image, .gih-mobile-image img');
+        let hasScrolled = false;
+        
+        const handleScroll = () => {
+            if (hasScrolled) return;
             
-            images.forEach(img => {
-                if (img.complete) {
-                    img.style.opacity = '1';
-                } else {
-                    img.addEventListener('load', () => {
-                        img.style.opacity = '1';
-                    }, { once: true });
-                }
-            });
-        }
+            if (window.scrollY > 100) {
+                hasScrolled = true;
+                scrollIndicator.style.opacity = '0';
+                scrollIndicator.style.transform = 'translateX(-50%) translateY(20px)';
+                window.removeEventListener('scroll', handleScroll);
+            }
+        };
         
-        setupAccessibility() {
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Tab') {
-                    document.body.classList.add('keyboard-nav');
-                }
-            });
-            
-            document.addEventListener('mousedown', () => {
-                document.body.classList.remove('keyboard-nav');
-            });
-        }
+        window.addEventListener('scroll', handleScroll, { passive: true });
+    };
+    
+    const setupCTATracking = () => {
+        const primaryCTA = document.querySelector('.hero__btn--primary');
+        const secondaryCTA = document.querySelector('.hero__sub-cta-link');
         
-        setupCTATracking() {
-            const ctaButtons = document.querySelectorAll('.gih-btn, .gih-mobile-btn');
-            
-            ctaButtons.forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const buttonText = btn.querySelector('span')?.textContent || 'Unknown';
-                    
-                    if (typeof gtag !== 'undefined') {
-                        gtag('event', 'cta_click', {
-                            'event_category': 'engagement',
-                            'event_label': buttonText
-                        });
-                    }
+        const trackClick = (label, destination) => {
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'cta_click', {
+                    'event_category': 'hero_section',
+                    'event_label': label,
+                    'destination': destination,
+                    'transport_type': 'beacon'
                 });
+            }
+            
+            if (typeof dataLayer !== 'undefined') {
+                dataLayer.push({
+                    'event': 'hero_cta_click',
+                    'cta_label': label,
+                    'cta_destination': destination
+                });
+            }
+        };
+        
+        if (primaryCTA) {
+            primaryCTA.addEventListener('click', () => {
+                trackClick('primary_search', primaryCTA.href);
             });
         }
-    }
+        
+        if (secondaryCTA) {
+            secondaryCTA.addEventListener('click', () => {
+                trackClick('secondary_diagnosis', secondaryCTA.href);
+            });
+        }
+    };
+    
+    const setupKeyboardNavigation = () => {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                document.body.classList.add('keyboard-navigation');
+            }
+        });
+        
+        document.addEventListener('mousedown', () => {
+            document.body.classList.remove('keyboard-navigation');
+        });
+    };
     
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.grantHeroSystem = new GrantHeroSystem();
-        });
+        document.addEventListener('DOMContentLoaded', init);
     } else {
-        window.grantHeroSystem = new GrantHeroSystem();
+        init();
     }
-    
 })();
 </script>
