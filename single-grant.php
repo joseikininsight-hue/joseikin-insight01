@@ -227,6 +227,7 @@ $grant = array(
     'supervisor_title' => gisg_get_field('supervisor_title', $post_id),
     'supervisor_profile' => gisg_get_field('supervisor_profile', $post_id),
     'supervisor_image' => gisg_get_field_array('supervisor_image', $post_id),
+    'supervisor_url' => gisg_get_field('supervisor_url', $post_id),
     'supervisor_credentials' => gisg_get_field_array('supervisor_credentials', $post_id),
     'source_url' => gisg_get_field('source_url', $post_id),
     'source_name' => gisg_get_field('source_name', $post_id),
@@ -339,6 +340,13 @@ $reading_time = max(1, ceil(mb_strlen(strip_tags($content), 'UTF-8') / 400));
 // 最終確認日
 $last_verified = $grant['last_verified_date'] ? $grant['last_verified_date'] : get_the_modified_date('Y-m-d');
 $last_verified_display = date('Y年n月j日', strtotime($last_verified));
+$freshness_class = '';
+$freshness_label = '確認';
+if ($last_verified) {
+    $diff = (current_time('timestamp') - strtotime($last_verified)) / 86400;
+    if ($diff < 90) { $freshness_class = 'fresh'; $freshness_label = '最新情報'; }
+    elseif ($diff > 180) { $freshness_class = 'old'; $freshness_label = '情報古'; }
+}
 
 // パンくず
 $breadcrumbs = array(
@@ -543,6 +551,11 @@ if ($grant['ai_summary']) {
             "name": <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
             "description": <?php echo json_encode($meta_desc, JSON_UNESCAPED_UNICODE); ?>,
             "url": "<?php echo esc_url($canonical_url); ?>",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "JPY"
+            },
             "provider": {
                 "@type": "GovernmentOrganization",
                 "name": <?php echo json_encode($grant['organization'] ? $grant['organization'] : '行政機関', JSON_UNESCAPED_UNICODE); ?>
@@ -569,7 +582,7 @@ if ($grant['ai_summary']) {
     --gi-gray-900: #222;
     --gi-gray-800: #333;
     --gi-gray-700: #444;
-    --gi-gray-600: #666;
+    --gi-gray-600: #4b5563;
     --gi-gray-500: #888;
     --gi-gray-400: #aaa;
     --gi-gray-300: #ccc;
@@ -598,6 +611,8 @@ if ($grant['ai_summary']) {
     --gi-shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
     --gi-mobile-banner: 60px;
 }
+.gi-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--gi-black); color: var(--gi-white); padding: 12px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; z-index: 10000; opacity: 0; visibility: hidden; transition: 0.3s; }
+.gi-toast.show { opacity: 1; visibility: visible; bottom: 40px; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--gi-font); font-size: 16px; line-height: 1.8; color: var(--gi-black); background: var(--gi-white); -webkit-font-smoothing: antialiased; }
@@ -1069,7 +1084,7 @@ ul, ol { list-style: none; }
                 </span>
                 <span class="gi-hero-meta-item">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
-                    <?php echo esc_html($last_verified_display); ?>確認
+                    <?php echo esc_html($last_verified_display); ?><span class="<?php echo $freshness_class; ?>"><?php echo $freshness_label; ?></span>
                 </span>
             </div>
         </header>
@@ -1219,6 +1234,25 @@ ul, ol { list-style: none; }
                             <?php endif; ?>
                         </div>
                     </div>
+                    
+                    <!-- 更新履歴 -->
+                    <?php if (!empty($grant['update_history'])): ?>
+                    <div class="gi-details-group">
+                        <div class="gi-details-group-header"><span class="gi-details-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>更新履歴</div>
+                        <div class="gi-table">
+                            <?php foreach ($grant['update_history'] as $hist): 
+                                $hist_date = isset($hist['date']) ? $hist['date'] : (isset($hist['update_date']) ? $hist['update_date'] : '');
+                                $hist_content = isset($hist['content']) ? $hist['content'] : (isset($hist['text']) ? $hist['text'] : '');
+                                if (empty($hist_date) || empty($hist_content)) continue;
+                            ?>
+                            <div class="gi-table-row">
+                                <div class="gi-table-key"><?php echo esc_html($hist_date); ?></div>
+                                <div class="gi-table-value"><?php echo esc_html($hist_content); ?></div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     
                     <!-- 申請要件 -->
                     <div class="gi-details-group">
@@ -1626,6 +1660,9 @@ ul, ol { list-style: none; }
                                 <?php endforeach; ?>
                             </div>
                             <?php endif; ?>
+                            <?php if (!empty($grant['supervisor_url'])): ?>
+                            <div style="margin-top:12px;"><a href="<?php echo esc_url($grant['supervisor_url']); ?>" target="_blank" rel="noopener" style="text-decoration:underline;font-size:14px;font-weight:600;">監修者プロフィールを見る →</a></div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </aside>
@@ -1644,7 +1681,7 @@ ul, ol { list-style: none; }
                         </h3>
                     </header>
                     <div class="gi-ai-body">
-                        <div class="gi-ai-messages" id="aiMessages">
+                        <div class="gi-ai-messages" id="aiMessages" aria-live="polite">
                             <div class="gi-ai-msg">
                                 <div class="gi-ai-avatar">AI</div>
                                 <div class="gi-ai-bubble">この補助金について何でもお聞きください。対象者、金額、必要書類などお答えします。</div>
@@ -1652,7 +1689,7 @@ ul, ol { list-style: none; }
                         </div>
                         <div class="gi-ai-input-area">
                             <div class="gi-ai-input-wrap">
-                                <textarea class="gi-ai-input" id="aiInput" placeholder="質問を入力..." rows="1"></textarea>
+                                <textarea class="gi-ai-input" id="aiInput" placeholder="質問を入力..." rows="1" aria-label="AIへの質問"></textarea>
                                 <button class="gi-ai-send" id="aiSend" type="button" aria-label="送信">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                                 </button>
@@ -1666,6 +1703,22 @@ ul, ol { list-style: none; }
                                 <button class="gi-ai-chip" data-q="申請方法は？">申請</button>
                                 <button class="gi-ai-chip" data-q="締切はいつ？">締切</button>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 目次 -->
+                <section class="gi-sidebar-section">
+                    <header class="gi-sidebar-header"><h3 class="gi-sidebar-title">目次</h3></header>
+                    <div class="gi-sidebar-body">
+                        <div class="gi-sidebar-list">
+                            <?php foreach ($toc_items as $item): ?>
+                            <div class="gi-sidebar-list-item">
+                                <a href="#<?php echo esc_attr($item['id']); ?>" class="gi-sidebar-list-link">
+                                   <div class="gi-sidebar-list-content"><div class="gi-sidebar-list-title"><?php echo esc_html($item['title']); ?></div></div>
+                                </a>
+                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </section>
@@ -1765,7 +1818,7 @@ ul, ol { list-style: none; }
                     <div class="gi-sidebar-body">
                         <?php foreach ($recommended_columns as $col): ?>
                         <a href="<?php echo esc_url($col['permalink']); ?>" class="gi-column-card">
-                            <div class="gi-column-thumb"><?php if ($col['thumbnail']): ?><img src="<?php echo esc_url($col['thumbnail']); ?>" alt="" loading="lazy"><?php endif; ?></div>
+                            <div class="gi-column-thumb"><?php if ($col['thumbnail']): ?><img src="<?php echo esc_url($col['thumbnail']); ?>" alt="<?php echo esc_attr($col['title']); ?>" loading="lazy"><?php endif; ?></div>
                             <div class="gi-column-content">
                                 <div class="gi-column-title"><?php echo esc_html($col['title']); ?></div>
                                 <div class="gi-column-date"><?php echo esc_html($col['date']); ?></div>
@@ -1864,7 +1917,7 @@ ul, ol { list-style: none; }
                 <div class="gi-ai-msg"><div class="gi-ai-avatar">AI</div><div class="gi-ai-bubble">この補助金について何でもお聞きください。</div></div>
             </div>
             <div class="gi-mobile-ai-input-wrap">
-                <textarea class="gi-mobile-ai-input" id="mobileAiInput" placeholder="質問を入力..." rows="1"></textarea>
+                <textarea class="gi-mobile-ai-input" id="mobileAiInput" placeholder="質問を入力..." rows="1" aria-label="AIへの質問"></textarea>
                 <button class="gi-mobile-ai-send" id="mobileAiSend" type="button" aria-label="送信">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
@@ -1899,6 +1952,7 @@ ul, ol { list-style: none; }
     </div>
 </div>
 
+<div class="gi-toast" id="giToast"></div>
 <script>
 // CONFIG をグローバルスコープで定義（デバッグ用にもアクセス可能）
 var CONFIG = {
@@ -2005,6 +2059,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 try { localStorage.removeItem('gi_checklist_' + CONFIG.postId); } catch(e) {}
                 updateChecklistUI();
+                if(window.showToast) window.showToast('チェックリストをリセットしました');
             }
         });
     }
@@ -2330,6 +2385,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     console.log('Grant Single v302 Initialized');
+    
+    // トースト通知
+    function showToast(msg) {
+        var t = document.getElementById('giToast');
+        if(!t) return;
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(function(){ t.classList.remove('show'); }, 3000);
+    }
+    window.showToast = showToast;
 });
 </script>
 
