@@ -30,9 +30,10 @@ class GI_AI_Assistant_Manager {
         $this->openai_key = defined('OPENAI_API_KEY') ? OPENAI_API_KEY : get_option('gi_openai_api_key', '');
         $this->gemini_key = get_option('gi_gemini_api_key', '');
         
-        // Register AJAX handlers
-        add_action('wp_ajax_gi_ai_chat', array($this, 'handle_ai_chat'));
-        add_action('wp_ajax_nopriv_gi_ai_chat', array($this, 'handle_ai_chat'));
+        // DISABLED: AJAX handlers are already registered in ai-functions.php
+        // Duplicate registration causes conflicts
+        // add_action('wp_ajax_gi_ai_chat', array($this, 'handle_ai_chat'));
+        // add_action('wp_ajax_nopriv_gi_ai_chat', array($this, 'handle_ai_chat'));
         
         add_action('wp_ajax_gi_eligibility_diagnosis', array($this, 'handle_eligibility_diagnosis'));
         add_action('wp_ajax_nopriv_gi_eligibility_diagnosis', array($this, 'handle_eligibility_diagnosis'));

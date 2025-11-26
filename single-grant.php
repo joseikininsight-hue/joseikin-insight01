@@ -355,7 +355,7 @@ $breadcrumbs[] = array('name' => get_the_title(), 'url' => $canonical_url);
 
 // チェックリスト
 $checklist_items = array();
-$checklist_items[] = array('id' => 'target', 'category' => 'eligibility', 'label' => '対象者の要件を満たしている', 'description' => $grant['grant_target'] ? mb_substr(strip_tags($grant['grant_target']), 0, 50, 'UTF-8') . '...' : '', 'required' => true, 'help' => '事業者区分、業種、従業員数などの要件を確認してください。');
+$checklist_items[] = array('id' => 'target', 'category' => 'eligibility', 'label' => '対象者の要件を満たしている', 'description' => $grant['grant_target'] ? strip_tags($grant['grant_target']) : '', 'required' => true, 'help' => '事業者区分、業種、従業員数などの要件を確認してください。');
 
 if (!$is_nationwide) {
     $area_text = '';
@@ -373,10 +373,10 @@ $checklist_items[] = array('id' => 'deadline', 'category' => 'timing', 'label' =
 $checklist_items[] = array('id' => 'business_plan', 'category' => 'documents', 'label' => '事業計画書を作成できる', 'description' => '', 'required' => true, 'help' => '補助事業の目的、内容、効果を明確に記載した計画書が必要です。');
 
 $docs = $grant['required_documents_detailed'] ? $grant['required_documents_detailed'] : $grant['required_documents'];
-$checklist_items[] = array('id' => 'documents', 'category' => 'documents', 'label' => '必要書類を準備できる', 'description' => $docs ? mb_substr(strip_tags($docs), 0, 50, 'UTF-8') . '...' : '', 'required' => true, 'help' => '決算書、登記簿謄本、納税証明書などが必要になることが多いです。');
+$checklist_items[] = array('id' => 'documents', 'category' => 'documents', 'label' => '必要書類を準備できる', 'description' => $docs ? strip_tags($docs) : '', 'required' => true, 'help' => '決算書、登記簿謄本、納税証明書などが必要になることが多いです。');
 
 $expenses = $grant['eligible_expenses_detailed'] ? $grant['eligible_expenses_detailed'] : $grant['eligible_expenses'];
-$checklist_items[] = array('id' => 'expenses', 'category' => 'eligibility', 'label' => '対象経費に該当する事業である', 'description' => $expenses ? mb_substr(strip_tags($expenses), 0, 50, 'UTF-8') . '...' : '', 'required' => true, 'help' => '補助対象となる経費の種類を確認してください。');
+$checklist_items[] = array('id' => 'expenses', 'category' => 'eligibility', 'label' => '対象経費に該当する事業である', 'description' => $expenses ? strip_tags($expenses) : '', 'required' => true, 'help' => '補助対象となる経費の種類を確認してください。');
 
 if ($grant['subsidy_rate_max'] > 0 && $grant['subsidy_rate_max'] < 100) {
     $self_funding = 100 - $grant['subsidy_rate_max'];
@@ -722,7 +722,7 @@ ul, ol { list-style: none; }
 .gi-checklist-progress-percent { font-weight: 700; color: var(--gi-black); }
 .gi-checklist-category { border-bottom: 1px solid var(--gi-gray-200); }
 .gi-checklist-category:last-child { border-bottom: none; }
-.gi-checklist-category-header { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--gi-gray-800); font-size: 14px; font-weight: 700; color: var(--gi-white); }
+.gi-checklist-category-header { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--gi-gray-800); font-size: 14px; font-weight: 700; color: var(--gi-white) !important; }
 .gi-checklist-items { padding: 0; }
 .gi-checklist-item { display: flex; align-items: flex-start; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--gi-gray-100); cursor: pointer; transition: var(--gi-transition); background: var(--gi-white); }
 .gi-checklist-item:last-child { border-bottom: none; }
@@ -735,7 +735,7 @@ ul, ol { list-style: none; }
 .gi-checklist-content { flex: 1; min-width: 0; }
 .gi-checklist-label { font-size: 16px; font-weight: 600; color: var(--gi-black); margin-bottom: 4px; line-height: 1.5; word-wrap: break-word; overflow-wrap: break-word; }
 .gi-checklist-item.checked .gi-checklist-label { color: var(--gi-success-text); }
-.gi-checklist-desc { font-size: 14px; color: var(--gi-gray-600); margin-bottom: 4px; line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
+.gi-checklist-desc { font-size: 14px; color: var(--gi-gray-600); margin-bottom: 4px; line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; max-height: 4.8em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .gi-checklist-help { display: none; font-size: 14px; color: var(--gi-gray-700); padding: 12px; background: var(--gi-gray-100); margin-top: 8px; border-left: 3px solid var(--gi-gray-400); line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
 .gi-checklist-item.show-help .gi-checklist-help { display: block; }
 .gi-checklist-required { display: inline-block; padding: 2px 8px; background: var(--gi-error); color: var(--gi-white); font-size: 11px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
@@ -1872,7 +1872,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var CONFIG = {
         postId: <?php echo $post_id; ?>,
         ajaxUrl: '<?php echo admin_url("admin-ajax.php"); ?>',
-        nonce: '<?php echo wp_create_nonce("gi_ai_nonce"); ?>',
+        nonce: '<?php echo wp_create_nonce("wp_rest"); ?>',
         url: '<?php echo esc_js($canonical_url); ?>',
         title: <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
         totalChecklist: <?php echo count($checklist_items); ?>
@@ -2002,11 +2002,22 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 loadingMsg.remove();
-                addMessage(container, data.success && data.data ? data.data.answer : 'エラーが発生しました。', 'ai');
+                if (data.success && data.data && data.data.answer) {
+                    addMessage(container, data.data.answer, 'ai');
+                } else {
+                    // Show detailed error or fallback
+                    var errorMsg = 'エラーが発生しました。';
+                    if (data.data && data.data.message) {
+                        errorMsg += ' (' + data.data.message + ')';
+                    }
+                    addMessage(container, errorMsg, 'ai');
+                    console.error('AI Chat Error:', data);
+                }
             })
-            .catch(function() {
+            .catch(function(err) {
                 loadingMsg.remove();
-                addMessage(container, '通信エラーが発生しました。', 'ai');
+                addMessage(container, '通信エラーが発生しました。しばらく経ってからもう一度お試しください。', 'ai');
+                console.error('AI Chat Network Error:', err);
             })
             .finally(function() { btn.disabled = false; });
     }
