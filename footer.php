@@ -762,11 +762,7 @@ if (!function_exists('gi_get_cached_stats')) {
                     <!-- Brand Column -->
                     <div class="ji-nav-brand">
                         <a href="<?php echo esc_url(home_url('/')); ?>" class="ji-brand-logo" aria-label="<?php bloginfo('name'); ?> ホームへ">
-                            <div class="ji-brand-icon" aria-hidden="true">JI</div>
-                            <div class="ji-brand-text">
-                                <span class="ji-brand-name">Joseikin Insight</span>
-                                <span class="ji-brand-tagline">Grant Information Platform</span>
-                            </div>
+                            <img src="https://joseikin-insight.com/wp-content/uploads/2025/05/cropped-logo3.webp" alt="Joseikin Insight" width="180" height="40" style="height: 40px; width: auto;">
                         </a>
                         
                         <p class="ji-brand-description">

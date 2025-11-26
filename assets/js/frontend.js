@@ -1494,7 +1494,6 @@ const GrantInsight = {
         
         this.setupScrollAnimations();
         this.setupSmoothScroll();
-        this.setupBackToTop();
         
         console.log('[Grant Insight] ✅ Animations setup complete');
     },
@@ -1539,35 +1538,6 @@ const GrantInsight = {
                     behavior: 'smooth'
                 });
             }
-        });
-    },
-
-    setupBackToTop() {
-        let backToTopButton = document.querySelector('.gi-back-to-top, .back-to-top');
-        
-        if (!backToTopButton) {
-            backToTopButton = document.createElement('button');
-            backToTopButton.className = 'gi-back-to-top';
-            backToTopButton.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12L12 5L19 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-            backToTopButton.setAttribute('aria-label', 'ページトップへ戻る');
-            document.body.appendChild(backToTopButton);
-        }
-        
-        const scrollHandler = this.throttle(() => {
-            if (window.scrollY > 300) {
-                backToTopButton.classList.add('gi-back-to-top-visible');
-            } else {
-                backToTopButton.classList.remove('gi-back-to-top-visible');
-            }
-        }, 100);
-        
-        window.addEventListener('scroll', scrollHandler, { passive: true });
-        
-        backToTopButton.addEventListener('click', () => {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
         });
     },
 

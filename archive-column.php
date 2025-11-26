@@ -602,12 +602,6 @@ $schema_data = array(
         </div>
     </main>
 
-    <!-- トップに戻るボタン -->
-    <button class="gi-back-to-top" id="gi-back-to-top" aria-label="トップに戻る">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="18 15 12 9 6 15"></polyline>
-        </svg>
-    </button>
 
 </div>
 
@@ -1701,39 +1695,6 @@ $schema_data = array(
     border-radius: var(--gi-border-radius-full);
 }
 
-/* トップに戻るボタン */
-.gi-back-to-top {
-    position: fixed;
-    bottom: var(--gi-space-xl);
-    right: var(--gi-space-xl);
-    width: 56px;
-    height: 56px;
-    background: var(--gi-color-black);
-    color: var(--gi-color-white);
-    border: none;
-    border-radius: var(--gi-border-radius-full);
-    cursor: pointer;
-    opacity: 0;
-    visibility: hidden;
-    transition: all var(--gi-transition-slow);
-    z-index: var(--gi-z-fixed);
-    box-shadow: var(--gi-shadow-xl);
-}
-
-.gi-back-to-top.gi-visible {
-    opacity: 1;
-    visibility: visible;
-}
-
-.gi-back-to-top:hover {
-    background: var(--gi-color-gray-800);
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-}
-
-.gi-back-to-top:active {
-    transform: translateY(-2px);
-}
 
 /* ===== レスポンシブ調整 ===== */
 
@@ -1799,13 +1760,6 @@ $schema_data = array(
         padding: var(--gi-space-lg) var(--gi-space-md);
     }
     
-    .gi-back-to-top {
-        width: 48px;
-        height: 48px;
-        bottom: var(--gi-space-lg);
-        right: var(--gi-space-lg);
-    }
-    
     .gi-topic-time {
         display: none;
     }
@@ -1862,8 +1816,7 @@ $schema_data = array(
 .gi-tab-btn:focus-visible,
 .gi-search-btn:focus-visible,
 .gi-sort-select:focus-visible,
-.gi-back-btn:focus-visible,
-.gi-back-to-top:focus-visible {
+.gi-back-btn:focus-visible {
     outline: 3px solid var(--gi-color-black);
     outline-offset: 2px;
 }
@@ -1877,8 +1830,7 @@ $schema_data = array(
     
     .gi-category-tabs,
     .gi-control-bar,
-    .gi-sidebar,
-    .gi-back-to-top {
+    .gi-sidebar {
         display: none;
     }
     
@@ -1903,7 +1855,6 @@ $schema_data = array(
         ARTICLES_WRAPPER: '#gi-articles-list-wrapper',
         LOADING_INDICATOR: '#gi-loading-indicator',
         SORT_SELECT: '#gi-sort-select',
-        BACK_TO_TOP: '#gi-back-to-top',
         TABS_CONTAINER: '.gi-tabs-scroll-container',
     };
     
@@ -2336,38 +2287,7 @@ $schema_data = array(
         }
     }
     
-    // ===== トップに戻るボタン =====
-    
-    class BackToTopButton {
-        constructor() {
-            this.button = $(SELECTORS.BACK_TO_TOP);
-            this.init();
-        }
-        
-        init() {
-            if (!this.button) return;
-            
-            // スクロールイベント
-            on(window, 'scroll', () => {
-                if (window.scrollY > 400) {
-                    this.button.classList.add(CLASSES.VISIBLE);
-                } else {
-                    this.button.classList.remove(CLASSES.VISIBLE);
-                }
-            });
-            
-            // クリックイベント
-            on(this.button, 'click', () => {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            });
-            
-            log('BackToTopButton initialized');
-        }
-    }
-    
+
     // ===== 初期化 =====
     
     function init() {
@@ -2375,7 +2295,6 @@ $schema_data = array(
         
         window.giCategoryTabManager = new CategoryTabManager();
         window.giSortManager = new SortManager();
-        window.giBackToTopButton = new BackToTopButton();
         
         log('Initialization complete');
     }
