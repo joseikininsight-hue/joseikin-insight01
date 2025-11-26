@@ -11,6 +11,197 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+/**
+ * =====================================================
+ * AI CHAT AJAX HANDLER FOR SINGLE GRANT PAGE
+ * =====================================================
+ */
+
+/**
+ * Handle AI chat requests from grant detail page
+ */
+add_action('wp_ajax_gi_ai_chat', 'gi_handle_ai_chat_request');
+add_action('wp_ajax_nopriv_gi_ai_chat', 'gi_handle_ai_chat_request');
+
+function gi_handle_ai_chat_request() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'gi_ai_nonce')) {
+        wp_send_json_error(array(
+            'message' => 'セキュリティチェックに失敗しました。ページを再読み込みしてください。'
+        ));
+        return;
+    }
+    
+    // Get parameters
+    $post_id = intval($_POST['post_id'] ?? 0);
+    $question = sanitize_text_field($_POST['question'] ?? '');
+    
+    if (!$post_id || !$question) {
+        wp_send_json_error(array(
+            'message' => '必要なパラメータが不足しています。'
+        ));
+        return;
+    }
+    
+    // Get post data
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== 'grant') {
+        wp_send_json_error(array(
+            'message' => '補助金情報が見つかりませんでした。'
+        ));
+        return;
+    }
+    
+    // Build context from grant data
+    $context = gi_build_grant_context($post_id);
+    
+    // Try to get AI response
+    $openai = GI_OpenAI_Integration::getInstance();
+    
+    if ($openai && $openai->is_configured()) {
+        try {
+            $answer = gi_generate_ai_answer($question, $context, $openai);
+            
+            wp_send_json_success(array(
+                'answer' => $answer,
+                'source' => 'openai',
+                'suggestions' => gi_get_followup_suggestions($question, $context)
+            ));
+            return;
+            
+        } catch (Exception $e) {
+            error_log('AI Chat Error: ' . $e->getMessage());
+            // Fall through to fallback
+        }
+    }
+    
+    // Fallback response
+    $answer = gi_generate_fallback_answer($question, $context);
+    
+    wp_send_json_success(array(
+        'answer' => $answer,
+        'source' => 'fallback',
+        'suggestions' => gi_get_followup_suggestions($question, $context)
+    ));
+}
+
+/**
+ * Build grant context for AI
+ */
+function gi_build_grant_context($post_id) {
+    $context = array(
+        'title' => get_the_title($post_id),
+        'organization' => get_field('organization', $post_id) ?: '',
+        'max_amount' => get_field('max_amount', $post_id) ?: '',
+        'deadline' => get_field('deadline', $post_id) ?: '',
+        'grant_target' => get_field('grant_target', $post_id) ?: '',
+        'required_documents' => get_field('required_documents', $post_id) ?: '',
+        'eligible_expenses' => get_field('eligible_expenses', $post_id) ?: '',
+        'application_status' => get_field('application_status', $post_id) ?: 'open'
+    );
+    
+    return $context;
+}
+
+/**
+ * Generate AI answer using OpenAI
+ */
+function gi_generate_ai_answer($question, $context, $openai) {
+    $system_prompt = "あなたは補助金・助成金の専門アドバイザーです。以下の補助金について、ユーザーの質問に明確で簡潔に答えてください。\n\n";
+    $system_prompt .= "補助金情報:\n";
+    $system_prompt .= "名称: {$context['title']}\n";
+    $system_prompt .= "実施機関: {$context['organization']}\n";
+    $system_prompt .= "最大金額: {$context['max_amount']}\n";
+    $system_prompt .= "締切: {$context['deadline']}\n";
+    $system_prompt .= "対象者: {$context['grant_target']}\n";
+    $system_prompt .= "必要書類: {$context['required_documents']}\n";
+    $system_prompt .= "対象経費: {$context['eligible_expenses']}\n\n";
+    $system_prompt .= "ユーザーの質問: {$question}\n\n";
+    $system_prompt .= "回答は2-3段落以内で、分かりやすく説明してください。";
+    
+    $answer = $openai->generate_response($system_prompt, array('grants' => array($context)));
+    
+    return $answer ?: 'AIからの応答を取得できませんでした。';
+}
+
+/**
+ * Generate fallback answer without AI
+ */
+function gi_generate_fallback_answer($question, $context) {
+    $question_lower = mb_strtolower($question);
+    
+    // Pattern matching for common questions
+    if (mb_strpos($question_lower, '対象') !== false || mb_strpos($question_lower, '誰') !== false) {
+        if ($context['grant_target']) {
+            return "この補助金の対象者は以下の通りです:\n\n" . strip_tags($context['grant_target']) . "\n\n詳細は公式サイトでご確認ください。";
+        }
+        return "対象者については、ページ内の「対象要件」セクションをご確認ください。";
+    }
+    
+    if (mb_strpos($question_lower, '金額') !== false || mb_strpos($question_lower, 'いくら') !== false) {
+        if ($context['max_amount']) {
+            return "この補助金の最大金額は{$context['max_amount']}です。\n\n補助率や対象経費により実際の金額は異なります。詳細は実施機関にお問い合わせください。";
+        }
+        return "補助金額については、ページ内の「金額・補助率」セクションをご確認ください。";
+    }
+    
+    if (mb_strpos($question_lower, '締切') !== false || mb_strpos($question_lower, '期限') !== false) {
+        if ($context['deadline']) {
+            return "申請締切は{$context['deadline']}です。\n\n余裕を持った準備をお勧めします。最新情報は公式サイトでご確認ください。";
+        }
+        return "締切については、ページ内の「スケジュール」セクションをご確認ください。";
+    }
+    
+    if (mb_strpos($question_lower, '書類') !== false || mb_strpos($question_lower, '必要') !== false) {
+        if ($context['required_documents']) {
+            return "必要な書類は以下の通りです:\n\n" . strip_tags($context['required_documents']) . "\n\n詳細は実施機関の募集要項をご確認ください。";
+        }
+        return "必要書類については、ページ内の「申請要件」セクションをご確認ください。";
+    }
+    
+    if (mb_strpos($question_lower, '申請') !== false || mb_strpos($question_lower, '方法') !== false) {
+        $answer = "申請方法については、ページ内の「申請の流れ」セクションをご確認ください。\n\n";
+        $answer .= "一般的な流れは以下の通りです:\n";
+        $answer .= "1. 申請要件の確認\n";
+        $answer .= "2. 必要書類の準備\n";
+        $answer .= "3. 申請書の作成\n";
+        $answer .= "4. 申請書類の提出\n";
+        $answer .= "5. 審査結果の通知";
+        return $answer;
+    }
+    
+    // Default response
+    return "ご質問ありがとうございます。\n\n" . 
+           "この補助金は{$context['organization']}が実施する「{$context['title']}」です。\n\n" .
+           "詳細については、ページ内の各セクションをご確認いただくか、実施機関に直接お問い合わせください。";
+}
+
+/**
+ * Get follow-up suggestions
+ */
+function gi_get_followup_suggestions($question, $context) {
+    $suggestions = array(
+        '対象者の詳しい条件を教えてください',
+        '申請に必要な書類は何ですか？',
+        '締切はいつですか？',
+        '申請の流れを教えてください'
+    );
+    
+    // Remove already asked question type
+    $question_lower = mb_strtolower($question);
+    if (mb_strpos($question_lower, '対象') !== false) {
+        $suggestions = array_diff($suggestions, array('対象者の詳しい条件を教えてください'));
+    }
+    if (mb_strpos($question_lower, '書類') !== false) {
+        $suggestions = array_diff($suggestions, array('申請に必要な書類は何ですか？'));
+    }
+    if (mb_strpos($question_lower, '締切') !== false) {
+        $suggestions = array_diff($suggestions, array('締切はいつですか？'));
+    }
+    
+    return array_values($suggestions);
+}
+
 class GI_Enhanced_AI_Generator {
     
     private $api_key;

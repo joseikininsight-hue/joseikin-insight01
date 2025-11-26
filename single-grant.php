@@ -1873,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var CONFIG = {
         postId: <?php echo $post_id; ?>,
         ajaxUrl: '<?php echo admin_url("admin-ajax.php"); ?>',
-        nonce: '<?php echo wp_create_nonce("gi_ai_chat_nonce"); ?>',
+        nonce: '<?php echo wp_create_nonce("gi_ai_nonce"); ?>',
         url: '<?php echo esc_js($canonical_url); ?>',
         title: <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
         totalChecklist: <?php echo count($checklist_items); ?>
