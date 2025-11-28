@@ -19,23 +19,7 @@ $page_image = get_template_directory_uri() . '/assets/images/glossary-og.jpg';
 
 ?>
 
-<!-- SEO Meta Tags -->
-<meta name="description" content="<?php echo esc_attr($page_description); ?>">
-<meta name="keywords" content="<?php echo esc_attr($page_keywords); ?>">
-<link rel="canonical" href="<?php echo esc_url($page_url); ?>">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="<?php echo esc_attr($page_title); ?>">
-<meta property="og:description" content="<?php echo esc_attr($page_description); ?>">
-<meta property="og:url" content="<?php echo esc_url($page_url); ?>">
-<meta property="og:site_name" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
-<meta property="og:locale" content="ja_JP">
-
-<!-- Twitter Card -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="<?php echo esc_attr($page_title); ?>">
-<meta name="twitter:description" content="<?php echo esc_attr($page_description); ?>">
+<!-- SEO タグ削除 (2025-11-26): header.phpで一元管理 -->
 
 <!-- 構造化データ（JSON-LD） -->
 <script type="application/ld+json">

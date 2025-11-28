@@ -3820,35 +3820,35 @@ function gi_ajax_load_grants() {
         ];
     }
     
-    // 締切期間フィルター
+    // 締切期間フィルター（deadline_date = Y-m-d形式の日付フィールド）
     if (!empty($deadline_range)) {
-        $now = time();
+        $today = date('Y-m-d');
         switch($deadline_range) {
             case 'within_1month':
-                $end_time = $now + (30 * 24 * 60 * 60);
+                $end_date = date('Y-m-d', strtotime('+30 days'));
                 $meta_query[] = [
-                    'key' => 'deadline_timestamp',
-                    'value' => [$now, $end_time],
+                    'key' => 'deadline_date',
+                    'value' => [$today, $end_date],
                     'compare' => 'BETWEEN',
-                    'type' => 'NUMERIC'
+                    'type' => 'DATE'
                 ];
                 break;
             case 'within_3months':
-                $end_time = $now + (90 * 24 * 60 * 60);
+                $end_date = date('Y-m-d', strtotime('+90 days'));
                 $meta_query[] = [
-                    'key' => 'deadline_timestamp',
-                    'value' => [$now, $end_time],
+                    'key' => 'deadline_date',
+                    'value' => [$today, $end_date],
                     'compare' => 'BETWEEN',
-                    'type' => 'NUMERIC'
+                    'type' => 'DATE'
                 ];
                 break;
             case 'within_6months':
-                $end_time = $now + (180 * 24 * 60 * 60);
+                $end_date = date('Y-m-d', strtotime('+180 days'));
                 $meta_query[] = [
-                    'key' => 'deadline_timestamp',
-                    'value' => [$now, $end_time],
+                    'key' => 'deadline_date',
+                    'value' => [$today, $end_date],
                     'compare' => 'BETWEEN',
-                    'type' => 'NUMERIC'
+                    'type' => 'DATE'
                 ];
                 break;
             case 'anytime':
@@ -3916,9 +3916,20 @@ function gi_ajax_load_grants() {
             $args['order'] = 'ASC';
             break;
         case 'deadline_asc':
-            $args['orderby'] = 'meta_value_num';
-            $args['meta_key'] = 'deadline_timestamp';
+            // 締切日順（日付型でソート）- deadline_dateフィールドを使用
+            $args['orderby'] = 'meta_value';
+            $args['meta_key'] = 'deadline_date';
             $args['order'] = 'ASC';
+            // 過去の締切は除外（今日以降のみ表示）
+            if (!isset($args['meta_query'])) {
+                $args['meta_query'] = ['relation' => 'AND'];
+            }
+            $args['meta_query'][] = [
+                'key' => 'deadline_date',
+                'value' => date('Y-m-d'),
+                'compare' => '>=',
+                'type' => 'DATE'
+            ];
             break;
         case 'success_rate_desc':
             $args['orderby'] = 'meta_value_num';
@@ -3929,6 +3940,13 @@ function gi_ajax_load_grants() {
         case 'featured':
             $args['orderby'] = ['meta_value_num' => 'DESC', 'date' => 'DESC'];
             $args['meta_key'] = 'is_featured';
+            break;
+        case 'popular_desc':
+        case 'popular':
+            // view_count メタフィールドで人気順にソート
+            $args['orderby'] = 'meta_value_num';
+            $args['meta_key'] = 'view_count';
+            $args['order'] = 'DESC';
             break;
         default:
             $args['orderby'] = 'date';

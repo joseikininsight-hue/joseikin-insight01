@@ -245,9 +245,19 @@ if (get_query_var('hide_sticky_cta')) return;
     }
 }
 
-/* Body padding handling via JS is preferred, but CSS fallback */
-body {
-    padding-bottom: calc(var(--cta-height) + env(safe-area-inset-bottom));
+/* Body padding handling: コンテンツが隠れないようにするためのパディング */
+/* 注意: ページ固有のCSSで上書きされる可能性があるため、!importantは避ける */
+/* JSで動的に調整することを推奨 (下記スクリプトで対応) */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    body:not(.no-sticky-cta-padding) {
+        padding-bottom: calc(var(--cta-height) + env(safe-area-inset-bottom));
+    }
+}
+
+/* Single Grant ページは独自のモバイルバナー設定があるため除外 */
+body.single-grant {
+    /* single-grant.php で --gi-mobile-banner: 60px が設定されているため、
+       ここでは追加パディングを適用しない */
 }
 </style>
 

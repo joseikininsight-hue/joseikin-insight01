@@ -132,17 +132,7 @@ foreach ($faqs as $faq) {
 }
 ?>
 
-<!-- SEO メタタグ -->
-<meta name="description" content="<?php echo esc_attr($video_config['video_description']); ?> | 完全無料で全国の補助金・助成金を検索できるAIシステムの使い方を詳しく解説します。">
-<meta property="og:title" content="<?php echo esc_attr($video_config['video_title']); ?> | 補助金インサイト">
-<meta property="og:description" content="<?php echo esc_attr($video_config['video_description']); ?>">
-<meta property="og:image" content="<?php echo esc_url($video_config['thumbnail']); ?>">
-<meta property="og:type" content="article">
-<meta property="og:url" content="<?php echo esc_url(get_permalink()); ?>">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="<?php echo esc_attr($video_config['video_title']); ?>">
-<meta name="twitter:description" content="<?php echo esc_attr($video_config['video_description']); ?>">
-<meta name="twitter:image" content="<?php echo esc_url($video_config['thumbnail']); ?>">
+<!-- SEO タグ削除 (2025-11-26): header.phpで一元管理 -->
 
 <!-- 構造化データ -->
 <script type="application/ld+json">

@@ -93,8 +93,18 @@ class JI_Access_Tracking {
     
     /**
      * アクセスを記録
+     * 
+     * ⚠️ DISABLED FOR PERFORMANCE
+     * ページ表示ごとのデータベース書き込みは、TTFBとサイト速度に大きな影響を与えるため無効化されています。
+     * アクセス解析には Google Analytics などの外部ツールを使用することを推奨します。
+     * 
+     * 有効化する場合は、以下の return; をコメントアウトしてください。
      */
     public function track_view() {
+        // パフォーマンス最適化のため無効化
+        return;
+        
+        /* ORIGINAL CODE - DISABLED
         if (is_singular(array('grant', 'column'))) {
             global $post, $wpdb;
             
@@ -147,6 +157,7 @@ class JI_Access_Tracking {
             // 日別統計を更新
             $this->update_daily_stats($post_id, $post_type);
         }
+        */
     }
     
     /**

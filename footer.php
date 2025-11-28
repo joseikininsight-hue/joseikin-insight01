@@ -975,5 +975,38 @@ if (!function_exists('gi_get_cached_stats')) {
     ?>
 
     <?php wp_footer(); ?>
+    
+    <?php
+    // Organization構造化データ（JSON-LD形式）- SEO強化
+    $sns_urls = gi_get_sns_urls();
+    $same_as_urls = array_filter(array_values($sns_urls));
+    
+    $organization_schema = array(
+        '@context' => 'https://schema.org',
+        '@type' => 'Organization',
+        'name' => get_bloginfo('name'),
+        'url' => home_url('/'),
+        'logo' => 'https://joseikin-insight.com/wp-content/uploads/2025/05/cropped-logo3.webp',
+        'description' => '日本全国の補助金・助成金情報を網羅した検索プラットフォーム。専門家監修のもと、最新情報を毎日更新しています。',
+        'foundingDate' => '2024',
+        'areaServed' => array(
+            '@type' => 'Country',
+            'name' => 'Japan'
+        ),
+        'contactPoint' => array(
+            '@type' => 'ContactPoint',
+            'contactType' => 'customer service',
+            'url' => home_url('/contact/'),
+            'availableLanguage' => 'Japanese'
+        )
+    );
+    
+    if (!empty($same_as_urls)) {
+        $organization_schema['sameAs'] = $same_as_urls;
+    }
+    ?>
+    <script type="application/ld+json">
+    <?php echo wp_json_encode($organization_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT); ?>
+    </script>
 </body>
 </html>

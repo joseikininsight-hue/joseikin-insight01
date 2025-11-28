@@ -25,17 +25,7 @@ $terms_schema = array(
 );
 ?>
 
-<!-- SEO メタタグ -->
-<title>利用規約 | 補助金インサイト - AI活用型補助金検索ポータル</title>
-<meta name="description" content="補助金インサイトの利用規約。サービス利用に関する規定、ユーザーの権利と義務、禁止事項、免責事項などを定めています。">
-<meta name="keywords" content="利用規約,規約,サービス利用,補助金インサイト,利用条件">
-<link rel="canonical" href="https://joseikin-insight.com/terms/">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="利用規約 | 補助金インサイト">
-<meta property="og:description" content="補助金インサイトの利用規約。サービス利用に関する規定を定めています。">
-<meta property="og:url" content="https://joseikin-insight.com/terms/">
+<!-- SEO タグ削除 (2025-11-26): header.phpで一元管理 -->
 
 <!-- 構造化データ -->
 <script type="application/ld+json">

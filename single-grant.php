@@ -343,12 +343,20 @@ $status_map = array(
 );
 $status = isset($status_map[$grant['application_status']]) ? $status_map[$grant['application_status']] : $status_map['open'];
 
-// 閲覧数更新
+// 閲覧数更新 (Cookie セキュリティ強化版)
 $view_cookie = 'gi_viewed_' . $post_id;
 if (!isset($_COOKIE[$view_cookie])) {
     update_post_meta($post_id, 'views_count', $grant['views_count'] + 1);
     $grant['views_count']++;
-    setcookie($view_cookie, '1', time() + 86400, '/');
+    // セキュリティフラグ追加: SameSite=Lax (CSRF対策), Secure (HTTPS時のみ送信), HttpOnly (JS経由でのアクセス防止)
+    $cookie_options = array(
+        'expires' => time() + 86400,
+        'path' => '/',
+        'secure' => is_ssl(), // HTTPSの場合のみSecure属性を有効化
+        'httponly' => true,   // JavaScriptからのアクセスを防止
+        'samesite' => 'Lax'   // クロスサイトリクエストでは送信しない（CSRF対策）
+    );
+    setcookie($view_cookie, '1', $cookie_options);
 }
 
 // 読了時間
@@ -551,7 +559,7 @@ if ($grant['ai_summary']) {
 }
 ?>
 
-<!-- 構造化データ -->
+<!-- 構造化データ (SEO最適化版: Article型 + 監修者情報) -->
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
@@ -565,18 +573,43 @@ if ($grant['ai_summary']) {
             ]
         },
         {
-            "@type": "GovernmentService",
-            "name": <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
+            "@type": "Article",
+            "headline": <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
             "description": <?php echo json_encode($meta_desc, JSON_UNESCAPED_UNICODE); ?>,
             "url": "<?php echo esc_url($canonical_url); ?>",
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "JPY"
+            "datePublished": "<?php echo get_the_date('c'); ?>",
+            "dateModified": "<?php echo get_the_modified_date('c'); ?>",
+            "author": {
+                "@type": "Organization",
+                "name": <?php echo json_encode($grant['supervisor_name'] ? $grant['supervisor_name'] : '補助金インサイト編集部', JSON_UNESCAPED_UNICODE); ?>
             },
-            "provider": {
-                "@type": "GovernmentOrganization",
-                "name": <?php echo json_encode($grant['organization'] ? $grant['organization'] : '行政機関', JSON_UNESCAPED_UNICODE); ?>
+            "publisher": {
+                "@type": "Organization",
+                "name": "<?php echo esc_js($site_name); ?>",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "<?php echo esc_url(get_template_directory_uri() . '/assets/images/logo.png'); ?>"
+                }
+            },
+            "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "<?php echo esc_url($canonical_url); ?>"
+            },
+            "about": {
+                "@type": "FinancialProduct",
+                "name": <?php echo json_encode(get_the_title(), JSON_UNESCAPED_UNICODE); ?>,
+                "provider": {
+                    "@type": "GovernmentOrganization",
+                    "name": <?php echo json_encode($grant['organization'] ? $grant['organization'] : '行政機関', JSON_UNESCAPED_UNICODE); ?>
+                }
+                <?php if ($grant['max_amount_numeric'] > 0): ?>
+                ,"offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "JPY",
+                    "description": <?php echo json_encode($amount_display ? '補助金額: ' . $amount_display : '金額は要確認', JSON_UNESCAPED_UNICODE); ?>
+                }
+                <?php endif; ?>
             }
         }
         <?php if (!empty($faq_items)): ?>
@@ -1662,7 +1695,7 @@ ul, ol { list-style: none; }
                     <div class="gi-supervisor-content">
                         <div class="gi-supervisor-avatar">
                             <?php if (!empty($grant['supervisor_image']) && isset($grant['supervisor_image']['url'])): ?>
-                            <img src="<?php echo esc_url($grant['supervisor_image']['url']); ?>" alt="<?php echo esc_attr($grant['supervisor_name']); ?>">
+                            <img src="<?php echo esc_url($grant['supervisor_image']['url']); ?>" alt="<?php echo esc_attr($grant['supervisor_name']); ?>" loading="lazy" decoding="async" width="72" height="72">
                             <?php else: ?>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                             <?php endif; ?>

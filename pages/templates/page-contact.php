@@ -25,17 +25,7 @@ $contact_schema = array(
 );
 ?>
 
-<!-- SEO メタタグ -->
-<title>お問い合わせ | 補助金インサイト - AI活用型補助金検索ポータル</title>
-<meta name="description" content="補助金インサイトへのお問い合わせフォーム。サービスに関するご質問、補助金検索のご相談、申請サポートに関するお問い合わせを承ります。">
-<meta name="keywords" content="お問い合わせ,問い合わせ,相談,サポート,補助金インサイト,連絡先">
-<link rel="canonical" href="https://joseikin-insight.com/contact/">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="お問い合わせ | 補助金インサイト">
-<meta property="og:description" content="補助金インサイトへのお問い合わせフォーム。サービスに関するご質問やご相談を承ります。">
-<meta property="og:url" content="https://joseikin-insight.com/contact/">
+<!-- SEO タグ削除 (2025-11-26): header.phpで一元管理 -->
 
 <!-- 構造化データ -->
 <script type="application/ld+json">
