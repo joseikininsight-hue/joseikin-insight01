@@ -105,27 +105,8 @@ if ($grant_queries === false) {
 }
 
 // 構造化データ
-$schema_website = array(
-    '@context' => 'https://schema.org',
-    '@type' => 'WebSite',
-    'name' => get_bloginfo('name'),
-    'url' => home_url('/'),
-    'description' => get_bloginfo('description'),
-    'inLanguage' => 'ja',
-    'potentialAction' => array(
-        '@type' => 'SearchAction',
-        'target' => array(
-            '@type' => 'EntryPoint',
-            'urlTemplate' => home_url('/grants/') . '?search={search_term_string}'
-        ),
-        'query-input' => 'required name=search_term_string'
-    ),
-    'publisher' => array(
-        '@type' => 'Organization',
-        'name' => get_bloginfo('name'),
-        'url' => home_url('/')
-    )
-);
+// NOTE: WebSite schemaはheader.phpでフロントページのみ出力されるため、ここでは削除
+// 重複するWebSite schemaはGoogleのSEO評価に悪影響を与える可能性があります
 
 $schema_breadcrumb = array(
     '@context' => 'https://schema.org',
@@ -439,9 +420,7 @@ body { margin: 0; padding: 0; min-height: 100vh; overflow-x: hidden; }
 
 <div class="scroll-progress" id="scroll-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
 
-<script type="application/ld+json">
-<?php echo wp_json_encode($schema_website, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
-</script>
+<!-- BreadcrumbList構造化データ -->
 <script type="application/ld+json">
 <?php echo wp_json_encode($schema_breadcrumb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
 </script>

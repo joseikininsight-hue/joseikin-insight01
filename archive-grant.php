@@ -178,20 +178,8 @@ foreach ($breadcrumbs as $index => $breadcrumb) {
     ];
 }
 
-// 構造化データ: SearchAction
-$search_action_schema = [
-    '@context' => 'https://schema.org',
-    '@type' => 'WebSite',
-    'url' => home_url(),
-    'potentialAction' => [
-        '@type' => 'SearchAction',
-        'target' => [
-            '@type' => 'EntryPoint',
-            'urlTemplate' => home_url('/?s={search_term_string}&post_type=grant')
-        ],
-        'query-input' => 'required name=search_term_string'
-    ]
-];
+// NOTE: SearchAction（WebSite schema）はheader.phpでサイト全体に出力されるため削除
+// 重複するWebSite schemaはGoogleのSEO評価に悪影響を与える可能性があります
 
 // OGP画像
 $og_image = get_site_icon_url(1200) ?: home_url('/wp-content/uploads/2025/10/1.png');
@@ -215,11 +203,6 @@ $keywords_string = implode(',', $keywords);
 <!-- 構造化データ: BreadcrumbList -->
 <script type="application/ld+json">
 <?php echo wp_json_encode($breadcrumb_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT); ?>
-</script>
-
-<!-- 構造化データ: SearchAction -->
-<script type="application/ld+json">
-<?php echo wp_json_encode($search_action_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT); ?>
 </script>
 
 <main class="grant-archive-yahoo-style" 
@@ -784,6 +767,9 @@ $keywords_string = implode(',', $keywords);
                                 <div class="select-option" 
                                      data-value="deadline_asc" 
                                      role="option">締切が近い順</div>
+                                <div class="select-option" 
+                                     data-value="popular_desc" 
+                                     role="option">人気順</div>
                                 <div class="select-option" 
                                      data-value="featured_first" 
                                      role="option">注目順</div>
@@ -2668,6 +2654,82 @@ $keywords_string = implode(',', $keywords);
         if (tagParam) {
             state.filters.tag = tagParam;
         }
+        
+        // 募集状況フィルター（application_status）
+        const statusParam = urlParams.get('application_status');
+        if (statusParam) {
+            // URLパラメータを内部state値にマッピング
+            // open -> active（UIのdata-valueと一致させる）
+            const statusMapping = {
+                'open': 'active',
+                'recruiting': 'active',
+                '募集中': 'active',
+                'upcoming': 'upcoming',
+                '募集予定': 'upcoming',
+                'closed': 'closed',
+                '終了': 'closed'
+            };
+            const mappedStatus = statusMapping[statusParam] || statusParam;
+            state.filters.status = mappedStatus;
+            
+            // UIのセレクトボックスも更新
+            if (elements.statusSelect) {
+                const statusValueSpan = elements.statusSelect.querySelector('.select-value');
+                const statusOptions = elements.statusSelect.querySelectorAll('.select-option');
+                statusOptions.forEach(opt => {
+                    opt.classList.remove('active');
+                    opt.setAttribute('aria-selected', 'false');
+                    if (opt.dataset.value === mappedStatus) {
+                        opt.classList.add('active');
+                        opt.setAttribute('aria-selected', 'true');
+                        if (statusValueSpan) {
+                            statusValueSpan.textContent = opt.textContent.trim();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // ソート順フィルター（orderby）
+        const orderbyParam = urlParams.get('orderby');
+        if (orderbyParam) {
+            // orderbyパラメータをsortに変換
+            let sortValue = 'date_desc'; // デフォルト
+            switch (orderbyParam) {
+                case 'deadline':
+                    sortValue = 'deadline_asc';
+                    break;
+                case 'new':
+                    sortValue = 'date_desc';
+                    break;
+                case 'popular':
+                    sortValue = 'popular_desc';
+                    break;
+                case 'amount':
+                    sortValue = 'amount_desc';
+                    break;
+            }
+            state.filters.sort = sortValue;
+            // UIのセレクトボックスも更新
+            if (elements.sortSelect) {
+                const sortValueSpan = elements.sortSelect.querySelector('.select-value');
+                const sortOptions = elements.sortSelect.querySelectorAll('.select-option');
+                sortOptions.forEach(opt => {
+                    opt.classList.remove('active');
+                    opt.setAttribute('aria-selected', 'false');
+                    if (opt.dataset.value === sortValue) {
+                        opt.classList.add('active');
+                        opt.setAttribute('aria-selected', 'true');
+                        if (sortValueSpan) {
+                            sortValueSpan.textContent = opt.textContent.trim();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // 初期化後にアクティブフィルターを表示
+        updateActiveFiltersDisplay();
     }
     
     function setupCustomSelects() {
@@ -3668,15 +3730,36 @@ $keywords_string = implode(',', $keywords);
         
         if (state.filters.status) {
             const labels = {
+                'open': '募集中',
                 'active': '募集中',
+                'recruiting': '募集中',
                 'upcoming': '募集予定',
                 'closed': '募集終了'
             };
+            const statusLabel = labels[state.filters.status] || state.filters.status;
             tags.push({
                 type: 'status',
-                label: `状況: ${labels[state.filters.status]}`,
+                label: `状況: ${statusLabel}`,
                 value: state.filters.status
             });
+        }
+        
+        // ソート順の表示（デフォルト以外の場合）
+        if (state.filters.sort && state.filters.sort !== 'date_desc') {
+            const sortLabels = {
+                'deadline_asc': '締切間近順',
+                'popular_desc': '人気順',
+                'amount_desc': '金額順',
+                'featured_first': '注目順',
+                'date_asc': '古い順'
+            };
+            if (sortLabels[state.filters.sort]) {
+                tags.push({
+                    type: 'sort',
+                    label: `並び順: ${sortLabels[state.filters.sort]}`,
+                    value: state.filters.sort
+                });
+            }
         }
         
         if (state.filters.tag) {

@@ -663,69 +663,117 @@ require_once get_template_directory() . '/inc/access-tracking.php';
 require_once get_template_directory() . '/inc/seo-content-manager.php';
 
 /**
+ * SEO Optimizer
+ * Google評価最適化モジュール - マイナス評価防止＆加点要素最大化
+ * 
+ * ⚠️ 無効化: seo-optimizer.phpは削除されました（不要なファイル作成のため）
+ * SEO最適化は header.php, single-grant.php, footer.php 等の既存ファイルで実装
+ * 
+ * @since 1.0.0
+ */
+// require_once get_template_directory() . '/inc/seo-optimizer.php';
+
+/**
  * 本文（the_content）から重複する特定のセクションを削除する
+ * 
+ * ⚠️ ENABLED (2025-11-27): 重複コンテンツがユーザー体験を悪化させているため再有効化
+ * 
+ * 【問題の背景】
+ * - single-grant.php の「詳細情報」セクションでACFフィールドから「対象者」「必要書類」「対象経費」を表示
+ * - 同ページの「本文」セクションでも the_content() 経由で同じ情報が出力される
+ * - 結果、同じ内容が2回表示され、ユーザーが混乱・離脱する原因に
+ * 
+ * 【削除対象】
+ * - テンプレート（ACFフィールド）で既に表示されているセクション
+ * - 本文中の見出しで始まる重複セクション
+ * 
+ * 【SEO への影響が最小限な理由】
+ * 1. 構造化データ（JSON-LD）はテンプレートで出力済み - Google はこちらを評価
+ * 2. ACFフィールドでの表示がメインコンテンツとして残る
+ * 3. 削除するのは「重複している本文部分のみ」
+ * 4. 本文に他の有用なコンテンツがあれば、それは残る
  */
 function remove_duplicate_sections_from_content($content) {
     // 助成金（grant）の個別ページ以外では実行しない
     if (!is_singular('grant')) {
         return $content;
     }
+    
+    // 空のコンテンツは処理しない
+    if (empty(trim($content))) {
+        return $content;
+    }
 
     // 削除したい見出しのリスト（正規表現用）
-    // H2, H3, H4タグなどで囲まれたこれらの文言をターゲットにします
+    // テンプレートの「詳細情報」セクションで表示されている項目
     $targets = [
+        // 完全一致パターン
         '対象経費（詳細）',
         '必要書類（詳細）',
         '対象者・対象事業',
-        '対象経費', // 表記ゆれ対策
-        '必要書類'  // 表記ゆれ対策
+        '■対象経費（詳細）',
+        '■必要書類（詳細）',
+        '■対象者・対象事業',
+        // 表記ゆれ対策
+        '対象経費',
+        '必要書類',
+        '対象者',
+        '対象事業',
+        // 追加パターン
+        '補助対象経費',
+        '申請書類',
+        '提出書類',
     ];
 
     foreach ($targets as $target) {
-        // パターン解説:
-        // <h[2-6]...>見出し</h[2-6]> から、次の <h[2-6]> タグが来る直前（または記事末尾）までを削除
-        $pattern = '/<h[2-6][^>]*>.*?' . preg_quote($target, '/') . '.*?<\/h[2-6]>[\s\S]*?(?=(<h[2-6]|$))/i';
+        // エスケープされたターゲット文字列
+        $escaped_target = preg_quote($target, '/');
         
-        $content = preg_replace($pattern, '', $content);
+        // パターン1: <h2>〜</h2> 見出しから次の同レベル以上の見出しまで削除
+        // 例: <h2>対象経費</h2>...内容...<h2>次のセクション</h2>
+        $pattern1 = '/<h([2-4])[^>]*>\s*(?:■|●|◆|▼|【|★)?\s*' . $escaped_target . '.*?<\/h\1>[\s\S]*?(?=<h[2-4]|$)/iu';
+        
+        // パターン2: <p><strong>見出し</strong></p> 形式
+        // 例: <p><strong>■対象経費（詳細）</strong></p>
+        $pattern2 = '/<p[^>]*>\s*<strong>\s*(?:■|●|◆|▼|【|★)?\s*' . $escaped_target . '.*?<\/strong>\s*<\/p>[\s\S]*?(?=<p[^>]*>\s*<strong>|<h[2-6]|$)/iu';
+        
+        // パターン3: 単独の段落（見出し形式でない場合）は削除しない - コンテンツ保護
+        
+        $content = preg_replace($pattern1, '', $content);
+        $content = preg_replace($pattern2, '', $content);
     }
+    
+    // 空の段落タグを削除（クリーンアップ）
+    $content = preg_replace('/<p[^>]*>\s*<\/p>/i', '', $content);
+    
+    // 連続した改行を整理
+    $content = preg_replace('/(\s*<br\s*\/?>\s*){3,}/i', '<br><br>', $content);
 
     return $content;
 }
+// ENABLED (2025-11-27): 本文とACFフィールドの重複表示を解消
+// - 「詳細情報」セクションでACFフィールドから表示される内容と、本文で重複する部分を削除
+// - SEOへの悪影響は最小限（構造化データ・ACFフィールド表示は残る）
 add_filter('the_content', 'remove_duplicate_sections_from_content', 20);
 
 /**
  * SEO Meta Tags Output (High Priority Fix)
+ * 
+ * DISABLED: header.php で既に出力しているため、重複を防ぐために無効化 (2025-11-26)
+ * header.php の ji_get_current_page_info() で title, description, canonical, OGP を出力済み
+ * 
+ * 重複したメタタグがSEOに与える悪影響:
+ * 1. 検索エンジンがどのメタ情報を優先すべきか混乱する
+ * 2. Google Search Consoleで「重複メタデータ」警告が発生する
+ * 3. クローラーの処理効率が低下する
+ * 
+ * header.php が以下を出力済み (L96-110):
+ * - <meta name="description">
+ * - <link rel="canonical">
+ * - <meta property="og:*"> (OGPタグ全般)
+ * - <meta name="twitter:*"> (Twitterカード)
  */
-function gi_add_seo_meta_tags() {
-    if (!is_singular('grant')) return;
-    
-    global $post;
-    $grant_id = $post->ID;
-    
-    // Description
-    $desc = '';
-    $ai_summary = get_post_meta($grant_id, 'ai_summary', true);
-    if ($ai_summary) {
-        $desc = mb_substr(wp_strip_all_tags($ai_summary), 0, 120, 'UTF-8');
-    } else {
-        $desc = mb_substr(wp_strip_all_tags($post->post_content), 0, 120, 'UTF-8');
-    }
-    $desc = str_replace(array("\r", "\n"), '', $desc);
-    
-    echo '<meta name="description" content="' . esc_attr($desc) . '">' . "\n";
-    echo '<link rel="canonical" href="' . esc_url(get_permalink($grant_id)) . '">' . "\n";
-    
-    // OGP
-    echo '<meta property="og:title" content="' . esc_attr(get_the_title($grant_id)) . '">' . "\n";
-    echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
-    echo '<meta property="og:url" content="' . esc_url(get_permalink($grant_id)) . '">' . "\n";
-    echo '<meta property="og:type" content="article">' . "\n";
-    
-    if (has_post_thumbnail($grant_id)) {
-        echo '<meta property="og:image" content="' . esc_url(get_the_post_thumbnail_url($grant_id, 'large')) . '">' . "\n";
-    }
-}
-add_action('wp_head', 'gi_add_seo_meta_tags', 1);
+// function gi_add_seo_meta_tags() - REMOVED (重複防止)
 
 /**
  * Inject Inline CTA (High Priority Fix)
@@ -763,3 +811,21 @@ function gi_inject_inline_cta($content) {
     return $new_content;
 }
 add_filter('the_content', 'gi_inject_inline_cta', 30); // Run after other filters
+
+/**
+ * =============================================================================
+ * PERFORMANCE OPTIMIZATION TOOLS
+ * パフォーマンス診断・最適化ツール
+ * =============================================================================
+ */
+
+// パフォーマンス診断ツール（管理画面で「ツール」→「パフォーマンス診断」から実行）
+if (file_exists(get_template_directory() . '/inc/performance-diagnostic.php')) {
+    require_once get_template_directory() . '/inc/performance-diagnostic.php';
+}
+
+// パフォーマンス最適化パッチ（自動的に適用される最適化）
+// 修正済み: 管理画面での投稿表示に影響しないように改善
+if (file_exists(get_template_directory() . '/inc/performance-optimization-patch.php')) {
+    require_once get_template_directory() . '/inc/performance-optimization-patch.php';
+}

@@ -59,32 +59,7 @@ $latest_grants = get_posts(array(
 ));
 ?>
 
-<!-- SEO メタタグ - 完全最適化 -->
-<meta name="description" content="<?php echo esc_attr($config['page_description']); ?>">
-<meta name="keywords" content="AI補助金マッチング,補助金診断,助成金検索,無料診断,ビジネス支援,事業支援,補助金一覧,補助金カテゴリ,補助金タグ,事業再構築補助金,ものづくり補助金,IT導入補助金">
-<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
-<meta name="author" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
-<meta name="copyright" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
-<link rel="canonical" href="<?php echo esc_url($current_url); ?>">
-
-<!-- Open Graph - 完全対応 -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="<?php echo esc_attr($config['page_title']); ?> | <?php echo esc_attr(get_bloginfo('name')); ?>">
-<meta property="og:description" content="<?php echo esc_attr($config['page_description']); ?>">
-<meta property="og:url" content="<?php echo esc_url($current_url); ?>">
-<meta property="og:image" content="<?php echo esc_url($og_image); ?>">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="AI補助金マッチングツール - 無料診断">
-<meta property="og:site_name" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
-<meta property="og:locale" content="ja_JP">
-
-<!-- Twitter Card - 完全対応 -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="<?php echo esc_attr($config['page_title']); ?>">
-<meta name="twitter:description" content="<?php echo esc_attr($config['page_description']); ?>">
-<meta name="twitter:image" content="<?php echo esc_url($og_image); ?>">
-<meta name="twitter:image:alt" content="AI補助金マッチングツール">
+<!-- SEO タグ削除 (2025-11-26): header.phpで一元管理 -->
 
 <!-- 構造化データ - WebPage -->
 <script type="application/ld+json">

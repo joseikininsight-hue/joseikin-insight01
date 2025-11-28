@@ -1,4436 +1,2033 @@
 <?php
 /**
- * Single Column Template - Complete Responsive v6.1
- * コラム記事詳細ページ - 完全レスポンシブ対応（スマホ横スクロール完全防止版）
+ * Single Column Template - Ultimate Edition v7.1
+ * コラム記事詳細ページ - 完全修正版
  * 
- * Version: 6.1.0
- * - 完全レスポンシブ対応（スマホ最適化）
- * - スマホ横スクロール完全防止
- * - タッチ操作対応
- * - パフォーマンス最適化
- * 
- * @package Grant_Insight_Perfect
+ * @package Grant_Insight_Ultimate
  * @subpackage Column_System
+ * @version 7.1.0
  */
+
+if (!defined('ABSPATH')) exit;
 
 get_header();
 
 while (have_posts()): the_post();
 
-// メタ情報を取得
+// ===================================
+// 基本データ取得
+// ===================================
 $post_id = get_the_ID();
-$read_time = get_field('estimated_read_time', $post_id);
-$view_count = get_field('view_count', $post_id) ?: 0;
-$difficulty = get_field('difficulty_level', $post_id);
-$last_updated = get_field('last_updated', $post_id);
-$key_points = get_field('key_points', $post_id);
-$target_audience = get_field('target_audience', $post_id);
-$categories = get_the_terms($post_id, 'column_category');
-$tags = get_the_terms($post_id, 'column_tag');
-
-// SEO用データ
-$post_url = get_permalink();
+$canonical_url = get_permalink($post_id);
+$site_name = get_bloginfo('name');
 $post_title = get_the_title();
-$post_excerpt = get_the_excerpt();
-$post_image = get_the_post_thumbnail_url($post_id, 'full');
-$post_date = get_the_date('c');
-$post_modified = get_the_modified_date('c');
-$author_name = get_the_author();
+$post_content = get_the_content();
+$post_excerpt = has_excerpt() ? get_the_excerpt() : wp_trim_words(strip_tags($post_content), 55);
 
-// SEO: メタディスクリプション最適化
-$meta_description = $post_excerpt;
-if (strlen($meta_description) > 160) {
-    $meta_description = mb_substr($meta_description, 0, 157) . '...';
+// ===================================
+// ヘルパー関数定義
+// ===================================
+
+if (!function_exists('gic_get_field')) {
+    function gic_get_field($field_name, $pid, $default = '') {
+        $value = function_exists('get_field') ? get_field($field_name, $pid) : get_post_meta($pid, $field_name, true);
+        return ($value !== null && $value !== false && $value !== '') ? $value : $default;
+    }
 }
 
-// 関連コラムを取得
-$related_query = new WP_Query(array(
-    'post_type' => 'column',
-    'posts_per_page' => 3,
-    'post__not_in' => array($post_id),
-    'post_status' => 'publish',
-    'orderby' => 'rand',
-));
+if (!function_exists('gic_get_field_array')) {
+    function gic_get_field_array($field_name, $pid) {
+        $value = function_exists('get_field') ? get_field($field_name, $pid) : get_post_meta($pid, $field_name, true);
+        return is_array($value) ? $value : array();
+    }
+}
 
-// 関連補助金を取得
-$acf_related_grants = get_field('related_grants', $post_id);
-$related_grants_query = null;
+if (!function_exists('gic_get_terms')) {
+    function gic_get_terms($pid, $taxonomy) {
+        if (!taxonomy_exists($taxonomy)) return array();
+        $terms = wp_get_post_terms($pid, $taxonomy);
+        return (!is_wp_error($terms) && !empty($terms)) ? $terms : array();
+    }
+}
 
-if (!empty($acf_related_grants) && is_array($acf_related_grants)) {
-    $related_grants_query = new WP_Query(array(
-        'post_type' => 'grant',
-        'post__in' => $acf_related_grants,
-        'posts_per_page' => 4,
-        'post_status' => 'publish',
-        'orderby' => 'post__in',
-    ));
+if (!function_exists('gic_calculate_reading_time')) {
+    function gic_calculate_reading_time($content) {
+        $word_count = mb_strlen(strip_tags($content), 'UTF-8');
+        return max(1, ceil($word_count / 400));
+    }
+}
+
+if (!function_exists('gic_format_date')) {
+    function gic_format_date($date_string, $format = 'Y年n月j日') {
+        if (empty($date_string)) return '';
+        $timestamp = strtotime($date_string);
+        return $timestamp ? date($format, $timestamp) : '';
+    }
+}
+
+if (!function_exists('gic_parse_key_points')) {
+    function gic_parse_key_points($key_points) {
+        $result = array();
+        
+        if (empty($key_points)) {
+            return $result;
+        }
+        
+        if (is_array($key_points)) {
+            foreach ($key_points as $point) {
+                $point_text = '';
+                if (is_array($point)) {
+                    $point_text = isset($point['point']) ? $point['point'] : 
+                                 (isset($point['text']) ? $point['text'] : 
+                                 (isset($point['content']) ? $point['content'] : ''));
+                } else {
+                    $point_text = $point;
+                }
+                $point_text = trim(wp_strip_all_tags($point_text));
+                if (!empty($point_text) && mb_strlen($point_text, 'UTF-8') > 2) {
+                    $result[] = $point_text;
+                }
+            }
+        } else {
+            $clean_text = wp_strip_all_tags($key_points);
+            $lines = preg_split('/\r\n|\r|\n/', $clean_text);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (!empty($line) && mb_strlen($line, 'UTF-8') > 2) {
+                    $result[] = $line;
+                }
+            }
+        }
+        
+        return $result;
+    }
+}
+
+// ===================================
+// メタ情報取得
+// ===================================
+$column = array(
+    'read_time' => gic_get_field('estimated_read_time', $post_id),
+    'view_count' => intval(gic_get_field('view_count', $post_id, 0)),
+    'difficulty' => gic_get_field('difficulty_level', $post_id, 'beginner'),
+    'last_updated' => gic_get_field('last_updated', $post_id),
+    'last_verified_date' => gic_get_field('last_verified_date', $post_id),
+    'key_points' => gic_get_field('key_points', $post_id),
+    'target_audience' => gic_get_field_array('target_audience', $post_id),
+    'ai_summary' => gic_get_field('ai_summary', $post_id),
+    'supervisor_name' => gic_get_field('supervisor_name', $post_id),
+    'supervisor_title' => gic_get_field('supervisor_title', $post_id),
+    'supervisor_profile' => gic_get_field('supervisor_profile', $post_id),
+    'supervisor_image' => gic_get_field_array('supervisor_image', $post_id),
+    'supervisor_url' => gic_get_field('supervisor_url', $post_id),
+    'supervisor_credentials' => gic_get_field_array('supervisor_credentials', $post_id),
+    'source_url' => gic_get_field('source_url', $post_id),
+    'source_name' => gic_get_field('source_name', $post_id),
+    'related_grants' => gic_get_field_array('related_grants', $post_id),
+    'related_columns' => gic_get_field_array('related_columns', $post_id),
+    'faq_items' => gic_get_field_array('faq_items', $post_id),
+    'is_featured' => (bool)gic_get_field('is_featured', $post_id, false),
+    'is_new' => (bool)gic_get_field('is_new', $post_id, false),
+    'is_updated' => (bool)gic_get_field('is_updated', $post_id, false),
+);
+
+// 読了時間
+if (!$column['read_time']) {
+    $column['read_time'] = gic_calculate_reading_time($post_content);
+}
+
+// キーポイントをパース
+$key_points_array = gic_parse_key_points($column['key_points']);
+
+// デフォルト監修者
+if (empty($column['supervisor_name'])) {
+    $column['supervisor_name'] = '補助金インサイト編集部';
+    $column['supervisor_title'] = '中小企業診断士・行政書士監修';
+    $column['supervisor_profile'] = '補助金・助成金の専門家チーム。中小企業診断士、行政書士、税理士など各分野の専門家が在籍。年間1,000件以上の補助金申請支援実績があります。';
+    $column['supervisor_credentials'] = array(
+        array('credential' => '中小企業診断士'),
+        array('credential' => '行政書士'),
+        array('credential' => '認定経営革新等支援機関'),
+    );
+}
+
+// 最終確認日
+$last_verified = $column['last_verified_date'] ? $column['last_verified_date'] : get_the_modified_date('Y-m-d');
+$last_verified_display = gic_format_date($last_verified);
+$freshness_class = '';
+$freshness_label = '確認';
+if ($last_verified) {
+    $diff = (current_time('timestamp') - strtotime($last_verified)) / 86400;
+    if ($diff < 30) { $freshness_class = 'fresh'; $freshness_label = '最新'; }
+    elseif ($diff < 90) { $freshness_class = 'recent'; $freshness_label = '確認済'; }
+    elseif ($diff > 180) { $freshness_class = 'old'; $freshness_label = '要確認'; }
+}
+
+// タクソノミー取得
+$categories = gic_get_terms($post_id, 'column_category');
+if (empty($categories)) {
+    $categories = gic_get_terms($post_id, 'category');
+}
+$tags = gic_get_terms($post_id, 'column_tag');
+if (empty($tags)) {
+    $tags = gic_get_terms($post_id, 'post_tag');
+}
+
+// 難易度マップ
+$difficulty_map = array(
+    'beginner' => array('label' => '初級', 'level' => 1, 'class' => 'beginner'),
+    'intermediate' => array('label' => '中級', 'level' => 2, 'class' => 'intermediate'),
+    'advanced' => array('label' => '上級', 'level' => 3, 'class' => 'advanced'),
+);
+$difficulty = isset($difficulty_map[$column['difficulty']]) ? $difficulty_map[$column['difficulty']] : $difficulty_map['beginner'];
+
+// 対象読者ラベル
+$audience_labels = array(
+    'startup' => array('label' => '創業・スタートアップを考えている方', 'icon' => 'rocket'),
+    'sme' => array('label' => '中小企業の経営者・担当者', 'icon' => 'building'),
+    'individual' => array('label' => '個人事業主・フリーランス', 'icon' => 'user'),
+    'npo' => array('label' => 'NPO・一般社団法人', 'icon' => 'heart'),
+    'agriculture' => array('label' => '農業・林業・漁業従事者', 'icon' => 'leaf'),
+    'it' => array('label' => 'IT・デジタル関連事業者', 'icon' => 'laptop'),
+    'manufacturing' => array('label' => '製造業・ものづくり企業', 'icon' => 'cog'),
+    'service' => array('label' => 'サービス業・小売業', 'icon' => 'store'),
+    'other' => array('label' => 'その他事業者', 'icon' => 'briefcase'),
+);
+
+// 閲覧数更新
+$view_cookie = 'gic_viewed_' . $post_id;
+if (!isset($_COOKIE[$view_cookie])) {
+    update_post_meta($post_id, 'view_count', $column['view_count'] + 1);
+    $column['view_count']++;
+    $cookie_options = array(
+        'expires' => time() + 86400,
+        'path' => '/',
+        'secure' => is_ssl(),
+        'httponly' => true,
+        'samesite' => 'Lax'
+    );
+    setcookie($view_cookie, '1', $cookie_options);
+}
+
+// パンくず
+$breadcrumbs = array(
+    array('name' => 'ホーム', 'url' => home_url('/')),
+    array('name' => 'コラム', 'url' => get_post_type_archive_link('column') ?: home_url('/column/')),
+);
+if (!empty($categories[0])) {
+    $cat_link = get_term_link($categories[0]);
+    if (!is_wp_error($cat_link)) {
+        $breadcrumbs[] = array('name' => $categories[0]->name, 'url' => $cat_link);
+    }
+}
+$breadcrumbs[] = array('name' => $post_title, 'url' => $canonical_url);
+
+// メタディスクリプション
+$meta_desc = '';
+if ($column['ai_summary']) {
+    $meta_desc = mb_substr(wp_strip_all_tags($column['ai_summary']), 0, 120, 'UTF-8');
+} elseif ($post_excerpt) {
+    $meta_desc = mb_substr(wp_strip_all_tags($post_excerpt), 0, 120, 'UTF-8');
 } else {
-    $related_grants_args = array(
+    $meta_desc = mb_substr(wp_strip_all_tags($post_content), 0, 120, 'UTF-8');
+}
+
+// OGP画像
+$og_image = get_the_post_thumbnail_url($post_id, 'full');
+if (!$og_image) {
+    $og_image = get_template_directory_uri() . '/assets/images/ogp-default.jpg';
+}
+
+// 著者情報
+$author_id = get_the_author_meta('ID');
+$author_name = get_the_author();
+
+// 関連補助金取得
+$related_grants = array();
+if (!empty($column['related_grants'])) {
+    foreach ($column['related_grants'] as $grant_item) {
+        $grant_id = is_array($grant_item) ? (isset($grant_item['ID']) ? intval($grant_item['ID']) : 0) : intval($grant_item);
+        if ($grant_id > 0 && get_post_status($grant_id) === 'publish') {
+            $related_grants[] = array(
+                'id' => $grant_id,
+                'title' => get_the_title($grant_id),
+                'permalink' => get_permalink($grant_id),
+                'max_amount' => gic_get_field('max_amount', $grant_id),
+                'deadline' => gic_get_field('deadline', $grant_id),
+                'application_status' => gic_get_field('application_status', $grant_id, 'open'),
+            );
+        }
+    }
+}
+
+// 自動で関連補助金を取得
+if (empty($related_grants)) {
+    $grant_query = new WP_Query(array(
         'post_type' => 'grant',
         'posts_per_page' => 4,
         'post_status' => 'publish',
         'orderby' => 'rand',
-    );
-    
-    if ($categories && !is_wp_error($categories) && !empty($categories)) {
-        $category_names = array_map(function($cat) {
-            return $cat->name;
-        }, $categories);
-        
-        $related_grants_args['tax_query'] = array(
-            array(
-                'taxonomy' => 'grant_category',
-                'field' => 'name',
-                'terms' => $category_names,
-                'operator' => 'IN'
-            )
+    ));
+    if ($grant_query->have_posts()) {
+        while ($grant_query->have_posts()) {
+            $grant_query->the_post();
+            $gid = get_the_ID();
+            $related_grants[] = array(
+                'id' => $gid,
+                'title' => get_the_title(),
+                'permalink' => get_permalink(),
+                'max_amount' => gic_get_field('max_amount', $gid),
+                'deadline' => gic_get_field('deadline', $gid),
+                'application_status' => gic_get_field('application_status', $gid, 'open'),
+            );
+        }
+        wp_reset_postdata();
+    }
+}
+
+// 関連コラム取得
+$related_columns = array();
+$related_query = new WP_Query(array(
+    'post_type' => array('column', 'post'),
+    'posts_per_page' => 4,
+    'post__not_in' => array($post_id),
+    'post_status' => 'publish',
+    'orderby' => 'rand',
+));
+if ($related_query->have_posts()) {
+    while ($related_query->have_posts()) {
+        $related_query->the_post();
+        $related_columns[] = array(
+            'id' => get_the_ID(),
+            'title' => get_the_title(),
+            'permalink' => get_permalink(),
+            'thumbnail' => get_the_post_thumbnail_url(get_the_ID(), 'medium'),
+            'date' => get_the_date('Y.m.d'),
+            'read_time' => gic_get_field('estimated_read_time', get_the_ID(), gic_calculate_reading_time(get_the_content())),
         );
     }
-    
-    $related_grants_query = new WP_Query($related_grants_args);
+    wp_reset_postdata();
+}
+
+// 人気コラム取得
+$popular_columns = array();
+$popular_query = new WP_Query(array(
+    'post_type' => array('column', 'post'),
+    'posts_per_page' => 5,
+    'post__not_in' => array($post_id),
+    'post_status' => 'publish',
+    'meta_key' => 'view_count',
+    'orderby' => 'meta_value_num',
+    'order' => 'DESC',
+));
+if ($popular_query->have_posts()) {
+    while ($popular_query->have_posts()) {
+        $popular_query->the_post();
+        $popular_columns[] = array(
+            'id' => get_the_ID(),
+            'title' => get_the_title(),
+            'permalink' => get_permalink(),
+            'view_count' => intval(gic_get_field('view_count', get_the_ID(), 0)),
+        );
+    }
+    wp_reset_postdata();
+}
+
+// FAQ生成
+$faq_items = array();
+if (!empty($column['faq_items'])) {
+    foreach ($column['faq_items'] as $faq) {
+        if (is_array($faq) && !empty($faq['question']) && !empty($faq['answer'])) {
+            $faq_items[] = $faq;
+        }
+    }
+}
+
+if (count($faq_items) < 3) {
+    $default_faqs = array(
+        array(
+            'question' => 'この記事の情報は最新ですか？',
+            'answer' => 'はい、' . $last_verified_display . '時点で内容を確認・更新しています。補助金制度は変更されることがありますので、申請前に必ず公式サイトで最新情報をご確認ください。'
+        ),
+        array(
+            'question' => '補助金の申請サポートは受けられますか？',
+            'answer' => '当サイトでは補助金申請のサポートサービスを提供しています。専門家による申請書類の作成支援や、採択率を高めるためのアドバイスを受けることができます。'
+        ),
+        array(
+            'question' => '関連する補助金を探すにはどうすればいいですか？',
+            'answer' => '当サイトのAI診断機能を使えば、あなたの事業に最適な補助金を簡単に見つけることができます。また、補助金一覧ページから条件で絞り込み検索も可能です。'
+        ),
+    );
+    foreach ($default_faqs as $dfaq) {
+        if (count($faq_items) < 5) {
+            $faq_items[] = $dfaq;
+        }
+    }
 }
 ?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo('charset'); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title><?php echo esc_html($post_title); ?> | <?php echo esc_html($site_name); ?></title>
+<meta name="description" content="<?php echo esc_attr($meta_desc); ?>">
+<link rel="canonical" href="<?php echo esc_url($canonical_url); ?>">
 
-<!-- SEO: 構造化データ - パンくずリスト -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position": 1,
-      "name": "ホーム",
-      "item": "<?php echo esc_js(home_url('/')); ?>"
-    },
-    {
-      "@type": "ListItem",
-      "position": 2,
-      "name": "コラム",
-      "item": "<?php echo esc_js(get_post_type_archive_link('column')); ?>"
-    }
-    <?php if ($categories && !is_wp_error($categories)): ?>
-    ,{
-      "@type": "ListItem",
-      "position": 3,
-      "name": "<?php echo esc_js($categories[0]->name); ?>",
-      "item": "<?php echo esc_js(get_term_link($categories[0])); ?>"
-    }
-    <?php endif; ?>
-    ,{
-      "@type": "ListItem",
-      "position": <?php echo $categories ? 4 : 3; ?>,
-      "name": "<?php echo esc_js($post_title); ?>",
-      "item": "<?php echo esc_js($post_url); ?>"
-    }
-  ]
-}
-</script>
-
-<!-- SEO: 構造化データ - 記事 -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Article",
-  "headline": "<?php echo esc_js($post_title); ?>",
-  "description": "<?php echo esc_js($meta_description); ?>",
-  "image": "<?php echo esc_url($post_image); ?>",
-  "datePublished": "<?php echo $post_date; ?>",
-  "dateModified": "<?php echo $post_modified; ?>",
-  "author": {
-    "@type": "Person",
-    "name": "<?php echo esc_js($author_name); ?>"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "<?php echo esc_js(get_bloginfo('name')); ?>",
-    "logo": {
-      "@type": "ImageObject",
-      "url": "<?php echo esc_url(get_site_icon_url()); ?>"
-    }
-  },
-  "mainEntityOfPage": {
-    "@type": "WebPage",
-    "@id": "<?php echo esc_url($post_url); ?>"
-  }
-  <?php if ($read_time): ?>
-  ,"timeRequired": "PT<?php echo intval($read_time); ?>M"
-  <?php endif; ?>
-  <?php if ($categories && !is_wp_error($categories)): ?>
-  ,"articleSection": "<?php echo esc_js($categories[0]->name); ?>"
-  <?php endif; ?>
-  <?php if ($tags && !is_wp_error($tags)): ?>
-  ,"keywords": "<?php echo esc_js(implode(', ', wp_list_pluck($tags, 'name'))); ?>"
-  <?php endif; ?>
-}
-</script>
-
-<!-- SEO: OGPメタタグ -->
+<!-- OGP -->
 <meta property="og:type" content="article">
 <meta property="og:title" content="<?php echo esc_attr($post_title); ?>">
-<meta property="og:description" content="<?php echo esc_attr($meta_description); ?>">
-<meta property="og:url" content="<?php echo esc_url($post_url); ?>">
-<meta property="og:image" content="<?php echo esc_url($post_image); ?>">
-<meta property="og:site_name" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
-<meta property="article:published_time" content="<?php echo $post_date; ?>">
-<meta property="article:modified_time" content="<?php echo $post_modified; ?>">
+<meta property="og:description" content="<?php echo esc_attr($meta_desc); ?>">
+<meta property="og:url" content="<?php echo esc_url($canonical_url); ?>">
+<meta property="og:image" content="<?php echo esc_url($og_image); ?>">
+<meta property="og:site_name" content="<?php echo esc_attr($site_name); ?>">
+<meta property="article:published_time" content="<?php echo get_the_date('c'); ?>">
+<meta property="article:modified_time" content="<?php echo get_the_modified_date('c'); ?>">
+
+<!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="<?php echo esc_attr($post_title); ?>">
-<meta name="twitter:description" content="<?php echo esc_attr($meta_description); ?>">
-<meta name="twitter:image" content="<?php echo esc_url($post_image); ?>">
+<meta name="twitter:description" content="<?php echo esc_attr($meta_desc); ?>">
+<meta name="twitter:image" content="<?php echo esc_url($og_image); ?>">
 
-<!-- SEO: Canonical URL -->
-<link rel="canonical" href="<?php echo esc_url($post_url); ?>">
+<!-- 構造化データ -->
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        <?php foreach ($breadcrumbs as $i => $crumb): ?>
+        {"@type": "ListItem", "position": <?php echo $i + 1; ?>, "name": <?php echo json_encode($crumb['name'], JSON_UNESCAPED_UNICODE); ?>, "item": "<?php echo esc_url($crumb['url']); ?>"}<?php echo $i < count($breadcrumbs) - 1 ? ',' : ''; ?>
+        <?php endforeach; ?>
+    ]
+}
+</script>
 
-<article id="post-<?php the_ID(); ?>" <?php post_class('single-column-responsive'); ?> itemscope itemtype="https://schema.org/Article">
-    
-    <!-- SEO: 非表示のメタデータ -->
-    <meta itemprop="headline" content="<?php echo esc_attr($post_title); ?>">
-    <meta itemprop="description" content="<?php echo esc_attr($meta_description); ?>">
-    <meta itemprop="image" content="<?php echo esc_url($post_image); ?>">
-    <meta itemprop="datePublished" content="<?php echo $post_date; ?>">
-    <meta itemprop="dateModified" content="<?php echo $post_modified; ?>">
-    <div itemprop="author" itemscope itemtype="https://schema.org/Person" style="display:none;">
-        <span itemprop="name"><?php echo esc_html($author_name); ?></span>
-    </div>
-    <div itemprop="publisher" itemscope itemtype="https://schema.org/Organization" style="display:none;">
-        <span itemprop="name"><?php echo esc_html(get_bloginfo('name')); ?></span>
-        <div itemprop="logo" itemscope itemtype="https://schema.org/ImageObject">
-            <meta itemprop="url" content="<?php echo esc_url(get_site_icon_url()); ?>">
-        </div>
-    </div>
-    
-    <div class="column-layout-container">
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": <?php echo json_encode($post_title, JSON_UNESCAPED_UNICODE); ?>,
+    "description": <?php echo json_encode($meta_desc, JSON_UNESCAPED_UNICODE); ?>,
+    "image": "<?php echo esc_url($og_image); ?>",
+    "datePublished": "<?php echo get_the_date('c'); ?>",
+    "dateModified": "<?php echo get_the_modified_date('c'); ?>",
+    "author": {"@type": "Person", "name": <?php echo json_encode($author_name, JSON_UNESCAPED_UNICODE); ?>},
+    "publisher": {"@type": "Organization", "name": "<?php echo esc_js($site_name); ?>"},
+    "reviewedBy": {"@type": "Person", "name": <?php echo json_encode($column['supervisor_name'], JSON_UNESCAPED_UNICODE); ?>},
+    "mainEntityOfPage": {"@type": "WebPage", "@id": "<?php echo esc_url($canonical_url); ?>"}
+}
+</script>
+
+<?php if (!empty($faq_items)): ?>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        <?php foreach ($faq_items as $i => $faq): ?>
+        {"@type": "Question", "name": <?php echo json_encode($faq['question'], JSON_UNESCAPED_UNICODE); ?>, "acceptedAnswer": {"@type": "Answer", "text": <?php echo json_encode($faq['answer'], JSON_UNESCAPED_UNICODE); ?>}}<?php echo $i < count($faq_items) - 1 ? ',' : ''; ?>
+        <?php endforeach; ?>
+    ]
+}
+</script>
+<?php endif; ?>
+
+<style>
+/* ============================================
+   Single Column v7.1 - Complete Fixed Version
+   ============================================ */
+
+:root {
+    --gic-black: #111;
+    --gic-dark: #1a1a1a;
+    --gic-gray-900: #222;
+    --gic-gray-800: #333;
+    --gic-gray-700: #444;
+    --gic-gray-600: #4b5563;
+    --gic-gray-500: #888;
+    --gic-gray-400: #aaa;
+    --gic-gray-300: #ccc;
+    --gic-gray-200: #e5e5e5;
+    --gic-gray-100: #f5f5f5;
+    --gic-gray-50: #fafafa;
+    --gic-white: #fff;
+    --gic-accent: #FFD700;
+    --gic-accent-dark: #E6C200;
+    --gic-accent-light: #FFF8DC;
+    --gic-success: #059669;
+    --gic-success-light: #D1FAE5;
+    --gic-success-text: #047857;
+    --gic-warning: #D97706;
+    --gic-warning-light: #FEF3C7;
+    --gic-error: #DC2626;
+    --gic-error-light: #FEE2E2;
+    --gic-info: #2563EB;
+    --gic-info-light: #DBEAFE;
+    --gic-font: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+    --gic-container: 1280px;
+    --gic-sidebar: 380px;
+    --gic-gap: 48px;
+    --gic-transition: 0.2s ease;
+    --gic-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --gic-shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    --gic-mobile-banner: 60px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--gic-font); font-size: 16px; line-height: 1.8; color: var(--gic-black); background: var(--gic-white); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; height: auto; display: block; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+ul, ol { list-style: none; }
+
+.gic-skip-link { position: absolute; top: -100px; left: 0; background: var(--gic-black); color: var(--gic-white); padding: 12px 16px; z-index: 10000; transition: top 0.2s; }
+.gic-skip-link:focus { top: 0; }
+
+.gic-progress { position: fixed; top: 0; left: 0; width: 0; height: 3px; background: var(--gic-accent); z-index: 9999; transition: width 0.1s linear; }
+
+.gic-container { max-width: var(--gic-container); margin: 0 auto; padding: 0 24px; }
+
+.gic-layout { display: grid; grid-template-columns: 1fr var(--gic-sidebar); gap: var(--gic-gap); padding: 48px 0; align-items: start; }
+.gic-main { min-width: 0; }
+.gic-sidebar { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+@media (max-width: 1100px) {
+    .gic-layout { grid-template-columns: 1fr; gap: 32px; }
+    .gic-sidebar { position: static; display: none; }
+    .gic-page { padding-bottom: calc(var(--gic-mobile-banner) + 80px); }
+}
+
+/* パンくず */
+.gic-breadcrumb { padding: 16px 0; border-bottom: 1px solid var(--gic-gray-200); background: var(--gic-gray-50); }
+.gic-breadcrumb-list { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--gic-gray-600); max-width: var(--gic-container); margin: 0 auto; padding: 0 24px; list-style: none; }
+.gic-breadcrumb-link:hover { color: var(--gic-black); }
+.gic-breadcrumb-sep { color: var(--gic-gray-300); }
+.gic-breadcrumb-current { color: var(--gic-black); font-weight: 600; }
+
+/* ヒーロー */
+.gic-hero { padding: 40px 0; border-bottom: 1px solid var(--gic-gray-200); }
+.gic-hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.gic-badge { display: inline-flex; align-items: center; padding: 4px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; }
+.gic-badge-category { background: var(--gic-black); color: var(--gic-accent); }
+.gic-badge-beginner { background: var(--gic-success); color: var(--gic-white); }
+.gic-badge-intermediate { background: var(--gic-warning); color: var(--gic-white); }
+.gic-badge-advanced { background: var(--gic-error); color: var(--gic-white); }
+.gic-badge-featured { background: var(--gic-accent); color: var(--gic-black); }
+.gic-badge-new { background: var(--gic-info); color: var(--gic-white); }
+.gic-badge-updated { background: var(--gic-success-light); color: var(--gic-success-text); border: 1px solid var(--gic-success); }
+.gic-badge-fresh { background: var(--gic-success-light); color: var(--gic-success-text); }
+.gic-badge-old { background: var(--gic-warning-light); color: var(--gic-warning); }
+
+.gic-hero-title { font-size: 32px; font-weight: 900; line-height: 1.3; letter-spacing: -0.02em; margin-bottom: 16px; }
+@media (max-width: 768px) { .gic-hero-title { font-size: 24px; } }
+
+.gic-hero-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; color: var(--gic-gray-600); }
+.gic-hero-meta-item { display: flex; align-items: center; gap: 4px; }
+.gic-hero-meta-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* メトリクス */
+.gic-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid var(--gic-black); margin: 32px 0; }
+.gic-metric { padding: 20px; text-align: center; border-right: 1px solid var(--gic-gray-200); background: var(--gic-white); }
+.gic-metric:last-child { border-right: none; }
+.gic-metric-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gic-gray-600); margin-bottom: 8px; }
+.gic-metric-value { font-size: 20px; font-weight: 900; color: var(--gic-black); line-height: 1.2; }
+.gic-metric-value.highlight { background: linear-gradient(transparent 60%, var(--gic-accent) 60%); display: inline; padding: 0 4px; }
+.gic-metric-sub { font-size: 12px; color: var(--gic-gray-600); margin-top: 4px; }
+.gic-metric-stars { display: flex; justify-content: center; gap: 2px; margin-top: 4px; }
+.gic-metric-star { width: 12px; height: 12px; }
+.gic-metric-star.active { fill: var(--gic-accent); }
+.gic-metric-star:not(.active) { fill: var(--gic-gray-300); }
+
+@media (max-width: 768px) {
+    .gic-metrics { grid-template-columns: repeat(2, 1fr); }
+    .gic-metric:nth-child(2) { border-right: none; }
+    .gic-metric:nth-child(1), .gic-metric:nth-child(2) { border-bottom: 1px solid var(--gic-gray-200); }
+}
+
+/* AI要約 */
+.gic-summary { background: var(--gic-black); color: var(--gic-white); padding: 32px; margin-bottom: 32px; position: relative; }
+.gic-summary::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--gic-accent); }
+.gic-summary-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.gic-summary-icon { width: 40px; height: 40px; background: var(--gic-accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.gic-summary-icon svg { width: 24px; height: 24px; color: var(--gic-black); }
+.gic-summary-label { font-size: 12px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
+.gic-summary-badge { margin-left: auto; padding: 4px 12px; background: rgba(255,255,255,0.1); font-size: 12px; font-weight: 600; }
+.gic-summary-text { font-size: 18px; line-height: 2; color: rgba(255,255,255,0.95); }
+
+/* 対象読者 */
+.gic-audience { background: var(--gic-gray-50); border-left: 4px solid var(--gic-black); padding: 24px; margin-bottom: 32px; }
+.gic-audience-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.gic-audience-title svg { width: 20px; height: 20px; flex-shrink: 0; }
+.gic-audience-list { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.gic-audience-item { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--gic-gray-700); margin: 0; padding: 0; }
+.gic-audience-item svg { width: 16px; height: 16px; color: var(--gic-success); flex-shrink: 0; }
+
+/* アイキャッチ */
+.gic-thumbnail { margin: 32px 0; border: 2px solid var(--gic-black); overflow: hidden; }
+.gic-thumbnail img { width: 100%; height: auto; display: block; }
+
+/* セクション */
+.gic-section { margin-bottom: 48px; }
+.gic-section-header { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 2px solid var(--gic-black); margin-bottom: 24px; }
+.gic-section-icon { width: 24px; height: 24px; flex-shrink: 0; }
+.gic-section-title { font-size: 20px; font-weight: 900; letter-spacing: -0.01em; margin: 0; padding: 0; border: none; background: none; }
+.gic-section-en { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gic-gray-500); margin-left: auto; }
+
+/* コンテンツ */
+.gic-content { font-size: 16px; line-height: 2; color: var(--gic-gray-800); }
+.gic-content h2 { font-size: 24px; font-weight: 900; color: var(--gic-black); margin: 48px 0 20px; padding-bottom: 12px; border-bottom: 2px solid var(--gic-black); }
+.gic-content h3 { font-size: 20px; font-weight: 700; color: var(--gic-black); margin: 36px 0 16px; padding-left: 16px; border-left: 4px solid var(--gic-accent); }
+.gic-content h4 { font-size: 18px; font-weight: 700; color: var(--gic-black); margin: 28px 0 12px; }
+.gic-content p { margin-bottom: 20px; }
+.gic-content ul, .gic-content ol { margin: 20px 0; padding-left: 28px; }
+.gic-content li { margin-bottom: 10px; }
+.gic-content ul li { list-style: disc; }
+.gic-content ol li { list-style: decimal; }
+.gic-content strong { font-weight: 700; color: var(--gic-black); }
+.gic-content a { color: var(--gic-info); text-decoration: underline; text-underline-offset: 2px; }
+.gic-content a:hover { color: var(--gic-black); }
+.gic-content blockquote { margin: 24px 0; padding: 20px 24px; background: var(--gic-gray-50); border-left: 4px solid var(--gic-accent); font-style: italic; }
+.gic-content img { margin: 24px 0; border: 1px solid var(--gic-gray-200); }
+.gic-content table { width: 100%; margin: 24px 0; border-collapse: collapse; }
+.gic-content th, .gic-content td { padding: 12px 16px; border: 1px solid var(--gic-gray-200); text-align: left; }
+.gic-content th { background: var(--gic-gray-100); font-weight: 700; }
+
+/* ============================================
+   ポイントまとめ - 完全修正版
+   ============================================ */
+.gic-keypoints {
+    background: var(--gic-accent-light) !important;
+    border: 2px solid var(--gic-accent) !important;
+    padding: 28px !important;
+    margin: 40px 0 !important;
+}
+
+.gic-keypoints-title {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    margin: 0 0 20px 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    color: var(--gic-black) !important;
+    border: none !important;
+    border-bottom: none !important;
+    background: transparent !important;
+}
+
+.gic-keypoints-title svg {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    flex-shrink: 0 !important;
+}
+
+.gic-keypoints-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.gic-keypoints-item {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 14px !important;
+    font-size: 15px !important;
+    line-height: 1.7 !important;
+    color: var(--gic-gray-800) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    list-style: none !important;
+}
+
+.gic-keypoints-item::before {
+    display: none !important;
+}
+
+.gic-keypoints-item::marker {
+    display: none !important;
+}
+
+.gic-keypoints-num {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    background: var(--gic-black) !important;
+    color: var(--gic-white) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    flex-shrink: 0 !important;
+    margin-top: 2px !important;
+}
+
+.gic-keypoints-text {
+    flex: 1 !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* ============================================
+   CTA - 完全修正版
+   ============================================ */
+.gic-cta {
+    background: linear-gradient(135deg, var(--gic-black) 0%, var(--gic-dark) 100%) !important;
+    color: var(--gic-white) !important;
+    padding: 48px 32px !important;
+    margin: 48px 0 !important;
+    text-align: center !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.gic-cta::before,
+.gic-cta::after {
+    content: '' !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 4px !important;
+    background: var(--gic-accent) !important;
+}
+
+.gic-cta::before { top: 0 !important; }
+.gic-cta::after { bottom: 0 !important; }
+
+.gic-cta-inner {
+    max-width: 700px !important;
+    margin: 0 auto !important;
+}
+
+.gic-cta-icon {
+    width: 64px !important;
+    height: 64px !important;
+    margin: 0 auto 20px !important;
+    background: rgba(255, 215, 0, 0.15) !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.gic-cta-icon svg {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    color: var(--gic-accent) !important;
+}
+
+.gic-cta-title {
+    font-size: 24px !important;
+    font-weight: 900 !important;
+    margin: 0 0 12px 0 !important;
+    padding: 0 !important;
+    color: var(--gic-white) !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+.gic-cta-desc {
+    font-size: 16px !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    margin: 0 0 28px 0 !important;
+    line-height: 1.7 !important;
+}
+
+.gic-cta-buttons {
+    display: flex !important;
+    justify-content: center !important;
+    gap: 16px !important;
+    flex-wrap: wrap !important;
+}
+
+.gic-cta-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    padding: 16px 28px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    border: 2px solid !important;
+    text-decoration: none !important;
+    transition: all 0.2s ease !important;
+    min-width: 180px !important;
+}
+
+.gic-cta-btn svg {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    max-width: 20px !important;
+    flex-shrink: 0 !important;
+}
+
+.gic-cta-btn-primary {
+    background: var(--gic-accent) !important;
+    border-color: var(--gic-accent) !important;
+    color: var(--gic-black) !important;
+}
+
+.gic-cta-btn-primary:hover {
+    background: var(--gic-accent-dark) !important;
+    border-color: var(--gic-accent-dark) !important;
+    transform: translateY(-2px) !important;
+}
+
+.gic-cta-btn-secondary {
+    background: transparent !important;
+    border-color: var(--gic-white) !important;
+    color: var(--gic-white) !important;
+}
+
+.gic-cta-btn-secondary:hover {
+    background: var(--gic-white) !important;
+    color: var(--gic-black) !important;
+    transform: translateY(-2px) !important;
+}
+
+@media (max-width: 768px) {
+    .gic-keypoints { padding: 20px 16px !important; margin: 28px 0 !important; }
+    .gic-keypoints-title { font-size: 16px !important; }
+    .gic-keypoints-title svg { width: 20px !important; height: 20px !important; min-width: 20px !important; max-width: 20px !important; }
+    .gic-keypoints-item { gap: 12px !important; font-size: 14px !important; }
+    .gic-keypoints-num { width: 24px !important; height: 24px !important; min-width: 24px !important; font-size: 12px !important; }
+    .gic-cta { padding: 36px 20px !important; margin: 36px 0 !important; }
+    .gic-cta-icon { width: 56px !important; height: 56px !important; }
+    .gic-cta-icon svg { width: 28px !important; height: 28px !important; }
+    .gic-cta-title { font-size: 20px !important; }
+    .gic-cta-desc { font-size: 14px !important; }
+    .gic-cta-buttons { flex-direction: column !important; gap: 12px !important; }
+    .gic-cta-btn { width: 100% !important; padding: 14px 24px !important; font-size: 15px !important; }
+}
+
+/* FAQ */
+.gic-faq-list { display: flex; flex-direction: column; gap: 12px; }
+.gic-faq-item { border: 1px solid var(--gic-gray-200); transition: var(--gic-transition); }
+.gic-faq-item:hover { border-color: var(--gic-gray-400); }
+.gic-faq-item[open] { border-color: var(--gic-black); }
+.gic-faq-question { display: flex; align-items: center; gap: 16px; padding: 20px; font-size: 16px; font-weight: 700; color: var(--gic-black); cursor: pointer; list-style: none; transition: var(--gic-transition); }
+.gic-faq-question::-webkit-details-marker { display: none; }
+.gic-faq-question:hover { background: var(--gic-gray-50); }
+.gic-faq-q-mark { width: 28px; height: 28px; min-width: 28px; background: var(--gic-black); color: var(--gic-white); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; flex-shrink: 0; }
+.gic-faq-question-text { flex: 1; }
+.gic-faq-icon { width: 20px; height: 20px; flex-shrink: 0; transition: transform 0.2s ease; }
+.gic-faq-item[open] .gic-faq-icon { transform: rotate(45deg); }
+.gic-faq-answer { padding: 0 20px 20px; padding-left: calc(20px + 28px + 16px); font-size: 16px; line-height: 1.8; color: var(--gic-gray-700); }
+
+/* 関連補助金 */
+.gic-grants-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media (max-width: 768px) { .gic-grants-grid { grid-template-columns: 1fr; } }
+.gic-grant-card { border: 2px solid var(--gic-gray-200); padding: 20px; transition: var(--gic-transition); background: var(--gic-white); display: block; text-decoration: none; }
+.gic-grant-card:hover { border-color: var(--gic-black); transform: translateY(-2px); box-shadow: var(--gic-shadow-lg); }
+.gic-grant-badge { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 700; margin-bottom: 8px; }
+.gic-grant-badge.open { background: var(--gic-success); color: var(--gic-white); }
+.gic-grant-badge.closed { background: var(--gic-gray-400); color: var(--gic-white); }
+.gic-grant-title { font-size: 16px; font-weight: 700; line-height: 1.5; margin-bottom: 12px; color: var(--gic-black); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gic-grant-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; color: var(--gic-gray-600); }
+.gic-grant-meta strong { color: var(--gic-black); }
+.gic-grant-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 14px; font-weight: 600; color: var(--gic-black); }
+
+/* タグ */
+.gic-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 32px 0; }
+.gic-tag { display: inline-flex; align-items: center; padding: 6px 14px; background: var(--gic-gray-100); border: 1px solid var(--gic-gray-200); font-size: 14px; font-weight: 500; transition: var(--gic-transition); }
+.gic-tag:hover { background: var(--gic-black); border-color: var(--gic-black); color: var(--gic-white); }
+
+/* シェア */
+.gic-share { margin: 40px 0; padding: 24px; background: var(--gic-black); text-align: center; }
+.gic-share-title { font-size: 16px; font-weight: 700; color: var(--gic-white); margin-bottom: 16px; }
+.gic-share-buttons { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.gic-share-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; font-size: 14px; font-weight: 600; border: 2px solid var(--gic-white); color: var(--gic-white); transition: var(--gic-transition); text-decoration: none; }
+.gic-share-btn:hover { background: var(--gic-white); color: var(--gic-black); }
+.gic-share-btn svg { width: 18px; height: 18px; }
+
+/* 情報ソース */
+.gic-source-card { border: 2px solid var(--gic-gray-200); background: var(--gic-white); margin: 40px 0; }
+.gic-source-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--gic-gray-100); border-bottom: 1px solid var(--gic-gray-200); }
+.gic-source-header svg { width: 18px; height: 18px; color: var(--gic-gray-600); }
+.gic-source-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gic-gray-600); }
+.gic-source-body { padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.gic-source-info { flex: 1; min-width: 200px; }
+.gic-source-name { font-size: 16px; font-weight: 700; color: var(--gic-black); margin-bottom: 4px; }
+.gic-source-verified { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--gic-success-text); }
+.gic-source-verified svg { width: 16px; height: 16px; }
+.gic-source-link { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--gic-black); color: var(--gic-white); font-size: 14px; font-weight: 600; transition: var(--gic-transition); text-decoration: none; }
+.gic-source-link:hover { background: var(--gic-gray-800); }
+.gic-source-link svg { width: 14px; height: 14px; }
+.gic-source-footer { padding: 12px 16px; background: var(--gic-gray-50); border-top: 1px solid var(--gic-gray-200); font-size: 14px; color: var(--gic-gray-600); }
+
+/* 監修者 */
+.gic-supervisor { background: var(--gic-gray-50); border: 2px solid var(--gic-gray-200); padding: 24px; margin: 40px 0; }
+.gic-supervisor-label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gic-gray-600); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--gic-gray-200); }
+.gic-supervisor-label svg { width: 16px; height: 16px; }
+.gic-supervisor-content { display: flex; gap: 20px; }
+.gic-supervisor-avatar { width: 72px; height: 72px; background: var(--gic-gray-200); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border-radius: 50%; }
+.gic-supervisor-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.gic-supervisor-avatar svg { width: 32px; height: 32px; color: var(--gic-gray-500); }
+.gic-supervisor-info { flex: 1; }
+.gic-supervisor-name { font-size: 18px; font-weight: 900; margin-bottom: 4px; }
+.gic-supervisor-title { font-size: 14px; color: var(--gic-gray-600); margin-bottom: 8px; }
+.gic-supervisor-bio { font-size: 14px; color: var(--gic-gray-700); line-height: 1.7; margin-bottom: 12px; }
+.gic-supervisor-credentials { display: flex; flex-wrap: wrap; gap: 8px; }
+.gic-supervisor-credential { padding: 4px 12px; background: var(--gic-white); border: 1px solid var(--gic-gray-300); font-size: 12px; font-weight: 600; }
+
+/* 関連コラム */
+.gic-related { padding: 48px 0; background: var(--gic-gray-50); border-top: 1px solid var(--gic-gray-200); margin-top: 48px; }
+.gic-related-header { text-align: center; margin-bottom: 32px; }
+.gic-related-en { font-size: 12px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gic-gray-500); margin-bottom: 8px; }
+.gic-related-title { font-size: 24px; font-weight: 900; margin: 0; }
+.gic-related-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+@media (max-width: 1024px) { .gic-related-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .gic-related-grid { grid-template-columns: 1fr; } }
+.gic-related-card { background: var(--gic-white); border: 1px solid var(--gic-gray-200); overflow: hidden; transition: var(--gic-transition); display: block; text-decoration: none; }
+.gic-related-card:hover { border-color: var(--gic-black); transform: translateY(-4px); box-shadow: var(--gic-shadow-lg); }
+.gic-related-card-thumb { height: 140px; background: var(--gic-gray-100); overflow: hidden; }
+.gic-related-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.gic-related-card-body { padding: 16px; }
+.gic-related-card-title { font-size: 15px; font-weight: 700; line-height: 1.5; margin-bottom: 8px; color: var(--gic-black); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gic-related-card-meta { font-size: 13px; color: var(--gic-gray-600); display: flex; gap: 12px; }
+
+/* サイドバー */
+.gic-sidebar-section { border: 1px solid var(--gic-gray-200); background: var(--gic-white); }
+.gic-sidebar-header { padding: 16px 20px; background: var(--gic-gray-50); border-bottom: 1px solid var(--gic-gray-200); }
+.gic-sidebar-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0; }
+.gic-sidebar-title svg { width: 16px; height: 16px; }
+.gic-sidebar-body { padding: 16px 20px; }
+
+/* AIチャット */
+.gic-ai-section { border: 2px solid var(--gic-black); }
+.gic-ai-section .gic-sidebar-header { background: var(--gic-black); border-bottom: none; }
+.gic-ai-section .gic-sidebar-title { color: var(--gic-white); }
+.gic-ai-body { padding: 0; display: flex; flex-direction: column; height: 480px; background: var(--gic-white); }
+.gic-ai-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; background: var(--gic-gray-50); }
+.gic-ai-msg { display: flex; gap: 12px; max-width: 90%; }
+.gic-ai-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.gic-ai-avatar { width: 36px; height: 36px; min-width: 36px; background: var(--gic-black); color: var(--gic-white); font-size: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.gic-ai-msg.user .gic-ai-avatar { background: var(--gic-gray-400); }
+.gic-ai-bubble { padding: 12px 16px; background: var(--gic-white); border: 1px solid var(--gic-gray-200); color: var(--gic-black); font-size: 14px; line-height: 1.7; }
+.gic-ai-msg.user .gic-ai-bubble { background: var(--gic-black); border-color: var(--gic-black); color: var(--gic-white); }
+.gic-ai-input-area { padding: 16px; border-top: 1px solid var(--gic-gray-200); background: var(--gic-white); }
+.gic-ai-input-wrap { display: flex; gap: 8px; }
+.gic-ai-input { flex: 1; padding: 12px 16px; background: var(--gic-white); border: 2px solid var(--gic-gray-300); color: var(--gic-black); font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 100px; }
+.gic-ai-input::placeholder { color: var(--gic-gray-500); }
+.gic-ai-input:focus { outline: none; border-color: var(--gic-black); }
+.gic-ai-send { width: 44px; height: 44px; min-width: 44px; background: var(--gic-black); display: flex; align-items: center; justify-content: center; transition: var(--gic-transition); flex-shrink: 0; }
+.gic-ai-send:hover { background: var(--gic-gray-800); }
+.gic-ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.gic-ai-send svg { width: 18px; height: 18px; color: var(--gic-white); }
+.gic-ai-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.gic-ai-chip { padding: 8px 12px; background: var(--gic-white); border: 1px solid var(--gic-gray-300); color: var(--gic-gray-700); font-size: 12px; font-weight: 600; cursor: pointer; transition: var(--gic-transition); }
+.gic-ai-chip:hover { background: var(--gic-black); border-color: var(--gic-black); color: var(--gic-white); }
+
+/* 目次 */
+.gic-toc-nav { font-size: 14px; }
+.gic-toc-nav ul { list-style: none; margin: 0; padding: 0; }
+.gic-toc-nav li { margin: 8px 0; }
+.gic-toc-nav a { color: var(--gic-gray-600); text-decoration: none; display: block; padding: 6px 0; transition: color 0.2s; line-height: 1.5; }
+.gic-toc-nav a:hover { color: var(--gic-black); }
+.gic-toc-nav .toc-h3 { padding-left: 16px; font-size: 13px; }
+
+/* 人気リスト */
+.gic-popular-list { display: flex; flex-direction: column; }
+.gic-popular-item { border-bottom: 1px solid var(--gic-gray-100); }
+.gic-popular-item:last-child { border-bottom: none; }
+.gic-popular-link { display: flex; align-items: center; gap: 12px; padding: 12px 0; transition: var(--gic-transition); text-decoration: none; }
+.gic-popular-link:hover { padding-left: 8px; }
+.gic-popular-rank { width: 28px; height: 28px; min-width: 28px; background: var(--gic-gray-100); font-size: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.gic-popular-rank.rank-1 { background: var(--gic-accent); color: var(--gic-black); }
+.gic-popular-rank.rank-2 { background: var(--gic-gray-400); color: var(--gic-white); }
+.gic-popular-rank.rank-3 { background: #CD7F32; color: var(--gic-white); }
+.gic-popular-content { flex: 1; min-width: 0; }
+.gic-popular-title { font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--gic-black); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gic-popular-views { font-size: 12px; color: var(--gic-gray-600); margin-top: 2px; }
+
+/* モバイルFAB */
+.gic-mobile-fab { display: none; position: fixed; bottom: calc(var(--gic-mobile-banner) + 20px); right: 16px; z-index: 100; }
+@media (max-width: 1100px) { .gic-mobile-fab { display: block; } }
+.gic-fab-btn { width: 60px; height: 60px; background: var(--gic-black); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-shadow: var(--gic-shadow-lg); transition: var(--gic-transition); border-radius: 50%; }
+.gic-fab-btn:hover { transform: scale(1.05); }
+.gic-fab-btn svg { width: 24px; height: 24px; color: var(--gic-white); }
+.gic-fab-btn span { font-size: 10px; font-weight: 700; color: var(--gic-white); }
+
+/* モバイルパネル */
+.gic-mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 998; opacity: 0; visibility: hidden; transition: var(--gic-transition); }
+.gic-mobile-overlay.active { opacity: 1; visibility: visible; }
+@media (max-width: 1100px) { .gic-mobile-overlay { display: block; } }
+.gic-mobile-panel { display: none; position: fixed; bottom: var(--gic-mobile-banner); left: 0; right: 0; background: var(--gic-white); max-height: calc(85vh - var(--gic-mobile-banner)); z-index: 999; transform: translateY(100%); visibility: hidden; transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1); flex-direction: column; border-top-left-radius: 16px; border-top-right-radius: 16px; box-shadow: 0 -4px 20px rgba(0,0,0,0.15); }
+.gic-mobile-panel.active { transform: translateY(0); visibility: visible; }
+@media (max-width: 1100px) { .gic-mobile-panel { display: flex; } }
+.gic-panel-handle { width: 40px; height: 4px; background: var(--gic-gray-300); margin: 12px auto; border-radius: 2px; }
+.gic-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--gic-gray-200); }
+.gic-panel-title { font-size: 18px; font-weight: 900; margin: 0; }
+.gic-panel-close { width: 36px; height: 36px; background: var(--gic-gray-100); display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.gic-panel-close svg { width: 20px; height: 20px; color: var(--gic-gray-600); }
+.gic-panel-tabs { display: flex; border-bottom: 1px solid var(--gic-gray-200); }
+.gic-panel-tab { flex: 1; padding: 12px; font-size: 14px; font-weight: 600; color: var(--gic-gray-500); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: var(--gic-transition); background: none; }
+.gic-panel-tab.active { color: var(--gic-black); border-bottom-color: var(--gic-black); }
+.gic-panel-content { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+.gic-panel-content-tab { display: none; }
+.gic-panel-content-tab.active { display: block; }
+
+/* トースト */
+.gic-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--gic-black); color: var(--gic-white); padding: 12px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; z-index: 10000; opacity: 0; visibility: hidden; transition: 0.3s; }
+.gic-toast.show { opacity: 1; visibility: visible; bottom: 40px; }
+
+/* 印刷 */
+@media print {
+    .gic-sidebar, .gic-mobile-fab, .gic-mobile-overlay, .gic-mobile-panel, .gic-progress, .gic-related, .gic-ai-section, .gic-cta, .gic-share { display: none !important; }
+    .gic-layout { grid-template-columns: 1fr; }
+    .gic-page { padding-bottom: 0 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+:focus-visible { outline: 3px solid var(--gic-accent); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+</style>
+
+<?php wp_head(); ?>
+</head>
+<body <?php body_class('gic-page'); ?>>
+<?php wp_body_open(); ?>
+
+<a href="#main-content" class="gic-skip-link">メインコンテンツへスキップ</a>
+<div class="gic-progress" id="progressBar"></div>
+
+<!-- パンくず -->
+<nav class="gic-breadcrumb" aria-label="パンくずリスト">
+    <ol class="gic-breadcrumb-list">
+        <?php foreach ($breadcrumbs as $i => $crumb): ?>
+        <li>
+            <?php if ($i < count($breadcrumbs) - 1): ?>
+            <a href="<?php echo esc_url($crumb['url']); ?>" class="gic-breadcrumb-link"><?php echo esc_html($crumb['name']); ?></a>
+            <span class="gic-breadcrumb-sep" aria-hidden="true">›</span>
+            <?php else: ?>
+            <span class="gic-breadcrumb-current"><?php echo esc_html($crumb['name']); ?></span>
+            <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+    </ol>
+</nav>
+
+<div class="gic-page">
+    <div class="gic-container">
         
-        <main class="column-main-content" role="main">
-            
-            <header class="column-header-section">
+        <!-- ヒーロー -->
+        <header class="gic-hero">
+            <div class="gic-hero-badges">
+                <?php if (!empty($categories)): ?>
+                    <?php foreach (array_slice($categories, 0, 2) as $cat): 
+                        $cat_link = get_term_link($cat);
+                        if (!is_wp_error($cat_link)):
+                    ?>
+                    <a href="<?php echo esc_url($cat_link); ?>" class="gic-badge gic-badge-category"><?php echo esc_html($cat->name); ?></a>
+                    <?php endif; endforeach; ?>
+                <?php endif; ?>
+                <span class="gic-badge gic-badge-<?php echo esc_attr($difficulty['class']); ?>"><?php echo esc_html($difficulty['label']); ?></span>
+                <?php if ($column['is_featured']): ?><span class="gic-badge gic-badge-featured">注目</span><?php endif; ?>
+                <?php if ($column['is_new']): ?><span class="gic-badge gic-badge-new">NEW</span><?php endif; ?>
+                <?php if ($freshness_class): ?><span class="gic-badge gic-badge-<?php echo $freshness_class; ?>"><?php echo $freshness_label; ?></span><?php endif; ?>
+            </div>
+            <h1 class="gic-hero-title"><?php echo esc_html($post_title); ?></h1>
+            <div class="gic-hero-meta">
+                <span class="gic-hero-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <time datetime="<?php echo get_the_date('c'); ?>"><?php echo get_the_date('Y年n月j日'); ?></time>
+                </span>
+                <span class="gic-hero-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    約<?php echo intval($column['read_time']); ?>分で読めます
+                </span>
+                <span class="gic-hero-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <?php echo number_format($column['view_count']); ?>回閲覧
+                </span>
+            </div>
+        </header>
+
+        <!-- メトリクス -->
+        <section class="gic-metrics" aria-label="記事情報">
+            <div class="gic-metric">
+                <div class="gic-metric-label">読了時間</div>
+                <div class="gic-metric-value highlight">約<?php echo intval($column['read_time']); ?>分</div>
+                <div class="gic-metric-sub"><?php echo number_format(mb_strlen(strip_tags($post_content), 'UTF-8')); ?>文字</div>
+            </div>
+            <div class="gic-metric">
+                <div class="gic-metric-label">難易度</div>
+                <div class="gic-metric-value"><?php echo esc_html($difficulty['label']); ?></div>
+                <div class="gic-metric-stars">
+                    <?php for ($i = 1; $i <= 3; $i++): ?>
+                    <svg class="gic-metric-star <?php echo $i <= $difficulty['level'] ? 'active' : ''; ?>" viewBox="0 0 24 24" width="12" height="12"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <?php endfor; ?>
+                </div>
+            </div>
+            <div class="gic-metric">
+                <div class="gic-metric-label">閲覧数</div>
+                <div class="gic-metric-value"><?php echo number_format($column['view_count']); ?></div>
+                <div class="gic-metric-sub">累計</div>
+            </div>
+            <div class="gic-metric">
+                <div class="gic-metric-label">関連補助金</div>
+                <div class="gic-metric-value"><?php echo count($related_grants); ?>件</div>
+                <div class="gic-metric-sub">募集中含む</div>
+            </div>
+        </section>
+
+        <div class="gic-layout">
+            <main class="gic-main" id="main-content">
                 
-                <!-- パンくずリスト -->
-                <nav class="column-breadcrumb" aria-label="パンくずナビゲーション">
-                    <ol itemscope itemtype="https://schema.org/BreadcrumbList">
-                        <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-                            <a itemprop="item" href="<?php echo home_url('/'); ?>">
-                                <span itemprop="name">ホーム</span>
-                            </a>
-                            <meta itemprop="position" content="1">
-                        </li>
-                        <li><i class="fas fa-chevron-right" aria-hidden="true"></i></li>
-                        <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-                            <a itemprop="item" href="<?php echo get_post_type_archive_link('column'); ?>">
-                                <span itemprop="name">コラム</span>
-                            </a>
-                            <meta itemprop="position" content="2">
-                        </li>
-                        <?php if ($categories && !is_wp_error($categories)): ?>
-                            <li><i class="fas fa-chevron-right" aria-hidden="true"></i></li>
-                            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-                                <a itemprop="item" href="<?php echo get_term_link($categories[0]); ?>">
-                                    <span itemprop="name"><?php echo esc_html($categories[0]->name); ?></span>
-                                </a>
-                                <meta itemprop="position" content="3">
-                            </li>
-                        <?php endif; ?>
-                    </ol>
-                </nav>
-
-                <!-- カテゴリバッジ -->
-                <div class="column-badges">
-                    <?php if ($categories && !is_wp_error($categories)): ?>
-                        <?php foreach (array_slice($categories, 0, 2) as $cat): ?>
-                            <a href="<?php echo get_term_link($cat); ?>" class="badge badge-category" rel="category tag">
-                                <i class="fas fa-folder" aria-hidden="true"></i>
-                                <?php echo esc_html($cat->name); ?>
-                            </a>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                    
-                    <?php if ($difficulty): ?>
-                        <?php
-                        $difficulty_labels = array(
-                            'beginner' => array('label' => '初級', 'class' => 'badge-beginner'),
-                            'intermediate' => array('label' => '中級', 'class' => 'badge-intermediate'),
-                            'advanced' => array('label' => '上級', 'class' => 'badge-advanced'),
-                        );
-                        $diff_info = $difficulty_labels[$difficulty] ?? array('label' => $difficulty, 'class' => 'badge-default');
-                        ?>
-                        <span class="badge <?php echo $diff_info['class']; ?>" aria-label="難易度: <?php echo $diff_info['label']; ?>">
-                            <i class="fas fa-signal" aria-hidden="true"></i>
-                            <?php echo $diff_info['label']; ?>
-                        </span>
-                    <?php endif; ?>
-                </div>
-
-                <!-- タイトル -->
-                <h1 class="column-title" itemprop="headline"><?php the_title(); ?></h1>
-
-                <!-- メタ情報 -->
-                <div class="column-meta">
-                    <div class="meta-item">
-                        <i class="fas fa-calendar-alt" aria-hidden="true"></i>
-                        <time datetime="<?php echo get_the_date('c'); ?>" itemprop="datePublished">
-                            <?php echo get_the_date('Y年m月d日'); ?>
-                        </time>
-                    </div>
-                    
-                    <?php if ($last_updated && $last_updated !== get_the_date('Y-m-d')): ?>
-                        <div class="meta-item">
-                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                            <time datetime="<?php echo date('c', strtotime($last_updated)); ?>" itemprop="dateModified">
-                                更新: <?php echo date('Y年m月d日', strtotime($last_updated)); ?>
-                            </time>
+                <!-- AI要約 -->
+                <?php if ($column['ai_summary']): ?>
+                <section class="gic-summary" id="summary">
+                    <div class="gic-summary-header">
+                        <div class="gic-summary-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                         </div>
-                    <?php endif; ?>
-                    
-                    <?php if ($read_time): ?>
-                        <div class="meta-item">
-                            <i class="fas fa-clock" aria-hidden="true"></i>
-                            <span><?php echo esc_html($read_time); ?>分で読めます</span>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <div class="meta-item">
-                        <i class="fas fa-eye" aria-hidden="true"></i>
-                        <span><?php echo number_format($view_count); ?>回閲覧</span>
+                        <span class="gic-summary-label">AI要約</span>
+                        <span class="gic-summary-badge">30秒で理解</span>
                     </div>
-                </div>
+                    <p class="gic-summary-text"><?php echo nl2br(esc_html($column['ai_summary'])); ?></p>
+                </section>
+                <?php endif; ?>
 
-            </header>
-
-            <!-- 対象読者 -->
-            <?php if ($target_audience && is_array($target_audience) && count($target_audience) > 0): ?>
-                <aside class="target-audience-box" aria-label="対象読者">
-                    <h2 class="box-title">
-                        <i class="fas fa-users" aria-hidden="true"></i>
+                <!-- 対象読者 -->
+                <?php if (!empty($column['target_audience'])): ?>
+                <aside class="gic-audience">
+                    <h2 class="gic-audience-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                         この記事はこんな方におすすめ
                     </h2>
-                    <ul class="audience-list">
-                        <?php
-                        $audience_labels = array(
-                            'startup' => '創業・スタートアップを考えている方',
-                            'sme' => '中小企業の経営者・担当者',
-                            'individual' => '個人事業主・フリーランス',
-                            'npo' => 'NPO・一般社団法人',
-                            'agriculture' => '農業・林業・漁業従事者',
-                            'other' => 'その他事業者',
-                        );
-                        foreach ($target_audience as $audience):
-                            if (isset($audience_labels[$audience])):
+                    <ul class="gic-audience-list">
+                        <?php foreach ($column['target_audience'] as $audience): 
+                            if (!isset($audience_labels[$audience])) continue;
+                            $aud = $audience_labels[$audience];
                         ?>
-                            <li><i class="fas fa-check" aria-hidden="true"></i><?php echo esc_html($audience_labels[$audience]); ?></li>
-                        <?php 
-                            endif;
-                        endforeach; 
-                        ?>
+                        <li class="gic-audience-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                            <?php echo esc_html($aud['label']); ?>
+                        </li>
+                        <?php endforeach; ?>
                     </ul>
                 </aside>
-            <?php endif; ?>
+                <?php endif; ?>
 
-            <!-- アイキャッチ画像 -->
-            <?php if (has_post_thumbnail()): ?>
-                <figure class="column-thumbnail" itemprop="image" itemscope itemtype="https://schema.org/ImageObject">
-                    <?php 
-                    $thumbnail_id = get_post_thumbnail_id();
-                    $thumbnail_alt = get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true);
-                    $thumbnail_alt = $thumbnail_alt ? $thumbnail_alt : $post_title;
-                    ?>
-                    <?php the_post_thumbnail('large', array(
-                        'itemprop' => 'url contentUrl',
-                        'alt' => esc_attr($thumbnail_alt)
-                    )); ?>
-                    <meta itemprop="width" content="1200">
-                    <meta itemprop="height" content="630">
+                <!-- アイキャッチ -->
+                <?php if (has_post_thumbnail()): ?>
+                <figure class="gic-thumbnail">
+                    <?php the_post_thumbnail('large', array('alt' => esc_attr($post_title))); ?>
                 </figure>
-            <?php endif; ?>
+                <?php endif; ?>
 
-            <!-- 記事本文 -->
-            <div class="column-content" itemprop="articleBody">
-                <?php the_content(); ?>
-            </div>
+                <!-- 記事本文 -->
+                <article class="gic-section" id="content">
+                    <div class="gic-content">
+                        <?php echo apply_filters('the_content', $post_content); ?>
+                    </div>
+                </article>
 
-            <!-- 記事終了後の最強CTAボックス -->
-            <section class="gus-cta-section" role="complementary" aria-label="次のアクション">
-                <div class="gus-cta-container">
-                    <div class="gus-cta-content">
-                        <div class="gus-cta-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <!-- ポイントまとめ -->
+                <?php if (!empty($key_points_array)): ?>
+                <section class="gic-keypoints" id="keypoints">
+                    <h2 class="gic-keypoints-title">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="#FFD700" stroke="#111" stroke-width="1.5" style="width:24px;height:24px;min-width:24px;max-width:24px;">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                        <span>この記事のポイント</span>
+                    </h2>
+                    <ul class="gic-keypoints-list">
+                        <?php foreach ($key_points_array as $i => $point_text): ?>
+                        <li class="gic-keypoints-item">
+                            <span class="gic-keypoints-num"><?php echo ($i + 1); ?></span>
+                            <span class="gic-keypoints-text"><?php echo esc_html($point_text); ?></span>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </section>
+                <?php endif; ?>
+
+                <!-- CTA -->
+                <section class="gic-cta">
+                    <div class="gic-cta-inner">
+                        <div class="gic-cta-icon">
+                            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;">
                                 <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
                                 <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
                                 <circle cx="12" cy="12" r="2" fill="currentColor"/>
                             </svg>
                         </div>
-                        <h2 class="gus-cta-title">
-                            あなたに合う補助金・助成金を今すぐ見つけましょう
-                        </h2>
-                        <p class="gus-cta-description">
-                            AI診断で最適な補助金を提案。<br>
-                            助成金インサイトであなたのビジネスに最適な支援制度を見つけましょう。
-                        </p>
-                        <div class="gus-cta-buttons">
-                            <a href="<?php echo home_url('/subsidy-diagnosis/'); ?>" 
-                               class="gus-cta-btn gus-cta-btn-primary"
-                               aria-label="AIで最適な補助金を診断">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <h2 class="gic-cta-title">あなたに合う補助金を今すぐ見つけましょう</h2>
+                        <p class="gic-cta-desc">AI診断で最適な補助金を提案。助成金インサイトであなたのビジネスに最適な支援制度を見つけましょう。</p>
+                        <div class="gic-cta-buttons">
+                            <a href="<?php echo esc_url(home_url('/subsidy-diagnosis/')); ?>" class="gic-cta-btn gic-cta-btn-primary">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;">
                                     <path d="M9 11l3 3L22 4"/>
                                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                                 </svg>
-                                <span>
-                                    <strong>AIで診断する</strong>
-                                    <small>あなたに最適な補助金を提案</small>
-                                </span>
+                                <span>AIで診断する</span>
                             </a>
-                            <a href="<?php echo home_url('/grants/'); ?>" 
-                               class="gus-cta-btn gus-cta-btn-secondary"
-                               aria-label="補助金一覧から探す">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <a href="<?php echo esc_url(home_url('/grants/')); ?>" class="gic-cta-btn gic-cta-btn-secondary">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;">
                                     <circle cx="11" cy="11" r="8"/>
                                     <path d="m21 21-4.35-4.35"/>
                                 </svg>
-                                <span>
-                                    <strong>一覧から探す</strong>
-                                    <small>全ての補助金をチェック</small>
-                                </span>
+                                <span>一覧から探す</span>
                             </a>
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- タグ -->
-            <?php if ($tags && !is_wp_error($tags)): ?>
-                <nav class="column-tags" aria-label="タグ">
-                    <h2 class="tags-title">
-                        <i class="fas fa-tags" aria-hidden="true"></i>
-                        関連タグ
-                    </h2>
-                    <div class="tags-list">
-                        <?php foreach ($tags as $tag): ?>
-                            <a href="<?php echo get_term_link($tag); ?>" class="tag-link" rel="tag">
-                                #<?php echo esc_html($tag->name); ?>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
-                </nav>
-            <?php endif; ?>
-
-            <!-- シェアボタン -->
-            <aside class="column-share" aria-label="シェアボタン">
-                <h2 class="share-title">この記事をシェア</h2>
-                <div class="share-buttons">
-                    <a href="https://twitter.com/intent/tweet?url=<?php echo urlencode($post_url); ?>&text=<?php echo urlencode($post_title); ?>" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       class="share-btn share-twitter"
-                       aria-label="Twitterでシェア">
-                        <i class="fab fa-twitter" aria-hidden="true"></i>
-                        <span class="share-text">Twitter</span>
-                    </a>
-                    <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo urlencode($post_url); ?>" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       class="share-btn share-facebook"
-                       aria-label="Facebookでシェア">
-                        <i class="fab fa-facebook-f" aria-hidden="true"></i>
-                        <span class="share-text">Facebook</span>
-                    </a>
-                    <a href="https://social-plugins.line.me/lineit/share?url=<?php echo urlencode($post_url); ?>" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       class="share-btn share-line"
-                       aria-label="LINEでシェア">
-                        <i class="fab fa-line" aria-hidden="true"></i>
-                        <span class="share-text">LINE</span>
-                    </a>
-                </div>
-            </aside>
-
-            <!-- スマホ用: このコラムの補助金情報 -->
-            <?php if ($related_grants_query && $related_grants_query->have_posts()): ?>
-            <section class="mobile-related-grants" aria-labelledby="mobile-related-grants-title">
-                <h2 class="section-title" id="mobile-related-grants-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                        <circle cx="12" cy="12" r="2" fill="currentColor"/>
-                    </svg>
-                    このコラムの補助金情報はこちら
-                </h2>
-                <div class="mobile-grants-grid">
-                    <?php 
-                    $count = 0;
-                    while ($related_grants_query->have_posts() && $count < 2): $related_grants_query->the_post(); 
-                        $grant_id = get_the_ID();
-                        $grant_amount = get_field('max_amount_numeric', $grant_id);
-                        $grant_deadline = get_field('deadline', $grant_id);
-                        
-                        $formatted_amount = '';
-                        if ($grant_amount && $grant_amount > 0) {
-                            if ($grant_amount >= 10000) {
-                                $formatted_amount = number_format($grant_amount / 10000) . '万円';
-                            } else {
-                                $formatted_amount = number_format($grant_amount) . '円';
-                            }
-                        }
-                    ?>
-                        <article class="mobile-grant-card">
-                            <a href="<?php the_permalink(); ?>" class="mobile-grant-link">
-                                <span class="mobile-grant-badge">補助金</span>
-                                <h3 class="mobile-grant-title"><?php the_title(); ?></h3>
-                                <div class="mobile-grant-info">
-                                    <?php if ($formatted_amount): ?>
-                                        <span class="mobile-grant-amount">上限 <?php echo esc_html($formatted_amount); ?></span>
-                                    <?php endif; ?>
-                                    <?php if ($grant_deadline): ?>
-                                        <span class="mobile-grant-deadline"><?php echo esc_html($grant_deadline); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <span class="mobile-grant-cta">詳細を見る →</span>
-                            </a>
-                        </article>
-                    <?php 
-                        $count++;
-                    endwhile; 
-                    wp_reset_postdata(); 
-                    ?>
-                </div>
-                <a href="<?php echo home_url('/grants/'); ?>" class="mobile-view-all-grants">
-                    すべての補助金を見る
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                        <polyline points="12 5 19 12 12 19"/>
-                    </svg>
-                </a>
-            </section>
-            <?php endif; ?>
-
-            <!-- 関連記事 -->
-            <?php if ($related_query->have_posts()): ?>
-                <section class="related-columns" aria-labelledby="related-title">
-                    <h2 class="related-title" id="related-title">
-                        <i class="fas fa-newspaper" aria-hidden="true"></i>
-                        あわせて読みたい関連コラム
-                    </h2>
-                    <div class="related-grid">
-                        <?php while ($related_query->have_posts()): $related_query->the_post(); ?>
-                            <?php get_template_part('template-parts/column/card'); ?>
-                        <?php endwhile; wp_reset_postdata(); ?>
                     </div>
                 </section>
-            <?php endif; ?>
 
-        </main>
-
-        <!-- サイドバー -->
-        <aside class="column-sidebar" role="complementary" aria-label="サイドバー">
-            
-            <!-- アフィリエイト広告: サイドバー上部 -->
-            <?php if (function_exists('ji_display_ad')): ?>
-                <div class="sidebar-card sidebar-ad-space sidebar-ad-top">
-                    <?php 
-                    $column_category_ids = array();
-                    if (!empty($categories) && !is_wp_error($categories)) {
-                        foreach ($categories as $cat) {
-                            $column_category_ids[] = 'column_category_' . $cat->term_id;
-                        }
-                    }
-                    ji_display_ad('single_column_sidebar_top', array(
-                        'page_type' => 'single-column',
-                        'category_ids' => $column_category_ids
-                    )); 
-                    ?>
-                </div>
-            <?php endif; ?>
-
-            <!-- 目次カード -->
-            <section class="sidebar-card toc-card" aria-labelledby="toc-card-title">
-                <header class="card-header">
-                    <i class="fas fa-list" aria-hidden="true"></i>
-                    <h2 id="toc-card-title">目次</h2>
-                </header>
-                <div class="card-body">
-                    <nav class="toc-nav" id="toc-nav" aria-label="記事の目次">
-                        <!-- JavaScriptで動的生成 -->
-                    </nav>
-                </div>
-            </section>
-
-            <!-- AIアシスタントカード -->
-            <section class="sidebar-card ai-chat-card" aria-labelledby="ai-chat-title">
-                <header class="card-header card-header-ai">
-                    <i class="fas fa-robot" aria-hidden="true"></i>
-                    <h2 id="ai-chat-title">AI質問アシスタント</h2>
-                </header>
-                <div class="card-body">
-                    <div class="ai-chat-intro">
-                        <p>この記事について質問してください。AIがお答えします。</p>
-                    </div>
-                    <div class="desktop-ai-chat-messages" id="desktopAiMessages" role="log" aria-live="polite" aria-label="AIチャット">
-                        <div class="ai-message ai-message-assistant">
-                            <div class="ai-avatar" aria-hidden="true">
-                                <i class="fas fa-robot"></i>
+                <!-- 関連補助金 -->
+                <?php if (!empty($related_grants)): ?>
+                <section class="gic-section" id="grants">
+                    <header class="gic-section-header">
+                        <svg class="gic-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                        <h2 class="gic-section-title">関連する補助金</h2>
+                        <span class="gic-section-en">Related Grants</span>
+                    </header>
+                    <div class="gic-grants-grid">
+                        <?php foreach ($related_grants as $grant): ?>
+                        <a href="<?php echo esc_url($grant['permalink']); ?>" class="gic-grant-card">
+                            <span class="gic-grant-badge <?php echo $grant['application_status'] === 'open' ? 'open' : 'closed'; ?>">
+                                <?php echo $grant['application_status'] === 'open' ? '募集中' : '募集終了'; ?>
+                            </span>
+                            <h3 class="gic-grant-title"><?php echo esc_html($grant['title']); ?></h3>
+                            <div class="gic-grant-meta">
+                                <?php if ($grant['max_amount']): ?><span><strong><?php echo esc_html($grant['max_amount']); ?></strong></span><?php endif; ?>
+                                <?php if ($grant['deadline']): ?><span><?php echo esc_html($grant['deadline']); ?></span><?php endif; ?>
                             </div>
-                            <div class="ai-content">
-                                こんにちは！この記事について何でも質問してください。
+                            <span class="gic-grant-link">詳細を見る →</span>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+                <?php endif; ?>
+
+                <!-- FAQ -->
+                <?php if (!empty($faq_items)): ?>
+                <section class="gic-section" id="faq">
+                    <header class="gic-section-header">
+                        <svg class="gic-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <h2 class="gic-section-title">よくある質問</h2>
+                        <span class="gic-section-en">FAQ</span>
+                    </header>
+                    <div class="gic-faq-list">
+                        <?php foreach ($faq_items as $faq): ?>
+                        <details class="gic-faq-item">
+                            <summary class="gic-faq-question">
+                                <span class="gic-faq-q-mark">Q</span>
+                                <span class="gic-faq-question-text"><?php echo esc_html($faq['question']); ?></span>
+                                <svg class="gic-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </summary>
+                            <div class="gic-faq-answer"><?php echo nl2br(esc_html($faq['answer'])); ?></div>
+                        </details>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+                <?php endif; ?>
+
+                <!-- タグ -->
+                <?php if (!empty($tags)): ?>
+                <nav class="gic-tags">
+                    <?php foreach ($tags as $tag): 
+                        $tag_link = get_term_link($tag);
+                        if (is_wp_error($tag_link)) continue;
+                    ?>
+                    <a href="<?php echo esc_url($tag_link); ?>" class="gic-tag">#<?php echo esc_html($tag->name); ?></a>
+                    <?php endforeach; ?>
+                </nav>
+                <?php endif; ?>
+
+                <!-- シェア -->
+                <aside class="gic-share">
+                    <h2 class="gic-share-title">この記事をシェア</h2>
+                    <div class="gic-share-buttons">
+                        <a href="https://twitter.com/intent/tweet?url=<?php echo urlencode($canonical_url); ?>&text=<?php echo urlencode($post_title); ?>" target="_blank" rel="noopener noreferrer" class="gic-share-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                            X
+                        </a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo urlencode($canonical_url); ?>" target="_blank" rel="noopener noreferrer" class="gic-share-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            Facebook
+                        </a>
+                        <a href="https://social-plugins.line.me/lineit/share?url=<?php echo urlencode($canonical_url); ?>" target="_blank" rel="noopener noreferrer" class="gic-share-btn">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+                            LINE
+                        </a>
+                    </div>
+                </aside>
+
+                <!-- 情報ソース -->
+                <div class="gic-source-card">
+                    <div class="gic-source-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <span class="gic-source-label">情報ソース</span>
+                    </div>
+                    <div class="gic-source-body">
+                        <div class="gic-source-info">
+                            <div class="gic-source-name"><?php echo esc_html($column['source_name'] ?: '補助金インサイト編集部'); ?></div>
+                            <div class="gic-source-verified">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                <?php echo esc_html($last_verified_display); ?> 確認済み
+                            </div>
+                        </div>
+                        <?php if ($column['source_url']): ?>
+                        <a href="<?php echo esc_url($column['source_url']); ?>" class="gic-source-link" target="_blank" rel="noopener noreferrer">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            公式ページを確認
+                        </a>
+                        <?php endif; ?>
+                    </div>
+                    <div class="gic-source-footer">※最新情報は必ず公式サイトでご確認ください。本ページの情報は参考情報です。</div>
+                </div>
+
+                <!-- 監修者 -->
+                <aside class="gic-supervisor">
+                    <div class="gic-supervisor-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        監修・編集
+                    </div>
+                    <div class="gic-supervisor-content">
+                        <div class="gic-supervisor-avatar">
+                            <?php if (!empty($column['supervisor_image']) && isset($column['supervisor_image']['url'])): ?>
+                            <img src="<?php echo esc_url($column['supervisor_image']['url']); ?>" alt="<?php echo esc_attr($column['supervisor_name']); ?>" loading="lazy" width="72" height="72">
+                            <?php else: ?>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            <?php endif; ?>
+                        </div>
+                        <div class="gic-supervisor-info">
+                            <div class="gic-supervisor-name"><?php echo esc_html($column['supervisor_name']); ?></div>
+                            <div class="gic-supervisor-title"><?php echo esc_html($column['supervisor_title']); ?></div>
+                            <p class="gic-supervisor-bio"><?php echo esc_html($column['supervisor_profile']); ?></p>
+                            <?php if (!empty($column['supervisor_credentials'])): ?>
+                            <div class="gic-supervisor-credentials">
+                                <?php foreach ($column['supervisor_credentials'] as $cred): 
+                                    if (!is_array($cred) || empty($cred['credential'])) continue;
+                                ?>
+                                <span class="gic-supervisor-credential"><?php echo esc_html($cred['credential']); ?></span>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </aside>
+
+            </main>
+
+            <!-- サイドバー -->
+            <aside class="gic-sidebar">
+                
+                <!-- AIアシスタント -->
+                <section class="gic-sidebar-section gic-ai-section">
+                    <header class="gic-sidebar-header">
+                        <h3 class="gic-sidebar-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            AIアシスタント
+                        </h3>
+                    </header>
+                    <div class="gic-ai-body">
+                        <div class="gic-ai-messages" id="aiMessages">
+                            <div class="gic-ai-msg">
+                                <div class="gic-ai-avatar">AI</div>
+                                <div class="gic-ai-bubble">この記事について何でもお聞きください。</div>
+                            </div>
+                        </div>
+                        <div class="gic-ai-input-area">
+                            <div class="gic-ai-input-wrap">
+                                <textarea class="gic-ai-input" id="aiInput" placeholder="質問を入力..." rows="1"></textarea>
+                                <button class="gic-ai-send" id="aiSend" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                </button>
+                            </div>
+                            <div class="gic-ai-suggestions">
+                                <button class="gic-ai-chip" data-q="この記事のポイントは？">ポイント</button>
+                                <button class="gic-ai-chip" data-q="関連する補助金は？">補助金</button>
+                                <button class="gic-ai-chip" data-q="申請方法を教えて">申請方法</button>
                             </div>
                         </div>
                     </div>
-                    <div class="desktop-ai-input-container">
-                        <label for="desktopAiInput" class="sr-only">AI質問入力</label>
-                        <textarea id="desktopAiInput" 
-                                  placeholder="例：この補助金の申請期限は？" 
-                                  rows="2"
-                                  aria-label="AI質問入力"></textarea>
-                        <button id="desktopAiSend" class="desktop-ai-send-btn" aria-label="質問を送信">
-                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                            <span class="send-text">送信</span>
-                        </button>
+                </section>
+
+                <!-- 目次 -->
+                <section class="gic-sidebar-section">
+                    <header class="gic-sidebar-header">
+                        <h3 class="gic-sidebar-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                            目次
+                        </h3>
+                    </header>
+                    <div class="gic-sidebar-body">
+                        <nav class="gic-toc-nav" id="tocNav"></nav>
                     </div>
-                </div>
-            </section>
-            
-            <!-- 補助金検索 -->
-            <?php get_template_part('template-parts/sidebar/search-widget'); ?>
-            
-            <!-- このコラムの補助金情報 -->
-            <?php if ($related_grants_query && $related_grants_query->have_posts()): ?>
-            <section class="sidebar-card related-grants-card" aria-labelledby="related-grants-title">
-                <header class="card-header card-header-grants">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                        <circle cx="12" cy="12" r="2" fill="currentColor"/>
-                    </svg>
-                    <h2 id="related-grants-title">このコラムの補助金情報</h2>
-                </header>
-                <div class="card-body">
-                    <div class="related-grants-list">
-                        <?php while ($related_grants_query->have_posts()): $related_grants_query->the_post(); 
-                            $grant_id = get_the_ID();
-                            $grant_amount = get_field('max_amount_numeric', $grant_id);
-                            $grant_deadline = get_field('deadline', $grant_id);
-                            $grant_status = get_field('application_status', $grant_id);
-                            
-                            $formatted_amount = '';
-                            if ($grant_amount && $grant_amount > 0) {
-                                if ($grant_amount >= 10000) {
-                                    $formatted_amount = number_format($grant_amount / 10000) . '万円';
-                                } else {
-                                    $formatted_amount = number_format($grant_amount) . '円';
-                                }
-                            }
-                        ?>
-                            <article class="related-grant-item">
-                                <a href="<?php the_permalink(); ?>" class="related-grant-link">
-                                    <h3 class="related-grant-title"><?php the_title(); ?></h3>
-                                    <div class="related-grant-meta">
-                                        <?php if ($formatted_amount): ?>
-                                            <span class="grant-amount">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                                    <line x1="12" y1="1" x2="12" y2="23"/>
-                                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                                                </svg>
-                                                最大 <?php echo esc_html($formatted_amount); ?>
-                                            </span>
-                                        <?php endif; ?>
-                                        <?php if ($grant_deadline): ?>
-                                            <span class="grant-deadline">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                                                    <line x1="16" y1="2" x2="16" y2="6"/>
-                                                    <line x1="8" y1="2" x2="8" y2="6"/>
-                                                    <line x1="3" y1="10" x2="21" y2="10"/>
-                                                </svg>
-                                                <?php echo esc_html($grant_deadline); ?>
-                                            </span>
-                                        <?php endif; ?>
+                </section>
+
+                <!-- 人気コラム -->
+                <?php if (!empty($popular_columns)): ?>
+                <section class="gic-sidebar-section">
+                    <header class="gic-sidebar-header">
+                        <h3 class="gic-sidebar-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            人気のコラム
+                        </h3>
+                    </header>
+                    <div class="gic-sidebar-body">
+                        <div class="gic-popular-list">
+                            <?php foreach ($popular_columns as $i => $pop): 
+                                $rank_class = $i === 0 ? 'rank-1' : ($i === 1 ? 'rank-2' : ($i === 2 ? 'rank-3' : ''));
+                            ?>
+                            <div class="gic-popular-item">
+                                <a href="<?php echo esc_url($pop['permalink']); ?>" class="gic-popular-link">
+                                    <span class="gic-popular-rank <?php echo $rank_class; ?>"><?php echo $i + 1; ?></span>
+                                    <div class="gic-popular-content">
+                                        <div class="gic-popular-title"><?php echo esc_html($pop['title']); ?></div>
+                                        <div class="gic-popular-views"><?php echo number_format($pop['view_count']); ?>回閲覧</div>
                                     </div>
-                                    <?php if ($grant_status === 'open'): ?>
-                                        <span class="grant-status status-open">募集中</span>
-                                    <?php endif; ?>
                                 </a>
-                            </article>
-                        <?php endwhile; wp_reset_postdata(); ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
-                    <a href="<?php echo home_url('/grants/'); ?>" class="view-all-grants">
-                        すべての補助金を見る
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                            <polyline points="12 5 19 12 12 19"/>
-                        </svg>
-                    </a>
-                </div>
-            </section>
-            <?php endif; ?>
+                </section>
+                <?php endif; ?>
 
-            <!-- 人気記事カード -->
-            <section class="sidebar-card popular-card" aria-labelledby="popular-card-title">
-                <header class="card-header">
-                    <i class="fas fa-fire" aria-hidden="true"></i>
-                    <h2 id="popular-card-title">人気のコラム</h2>
-                </header>
-                <div class="card-body">
-                    <?php
-                    $popular_query = new WP_Query(array(
-                        'post_type' => 'column',
-                        'posts_per_page' => 5,
-                        'meta_key' => 'view_count',
-                        'orderby' => 'meta_value_num',
-                        'order' => 'DESC',
-                    ));
-                    
-                    if ($popular_query->have_posts()):
-                    ?>
-                        <ul class="popular-list">
-                            <?php while ($popular_query->have_posts()): $popular_query->the_post(); ?>
-                                <li>
-                                    <a href="<?php the_permalink(); ?>">
-                                        <span class="popular-rank" aria-label="ランキング <?php echo $popular_query->current_post + 1; ?>位"><?php echo $popular_query->current_post + 1; ?></span>
-                                        <span class="popular-title"><?php the_title(); ?></span>
-                                    </a>
-                                </li>
-                            <?php endwhile; wp_reset_postdata(); ?>
-                        </ul>
-                    <?php endif; ?>
-                </div>
-            </section>
-
-            <!-- アフィリエイト広告: サイドバー下部 -->
-            <?php if (function_exists('ji_display_ad')): ?>
-                <div class="sidebar-card sidebar-ad-space sidebar-ad-bottom">
-                    <?php 
-                    ji_display_ad('single_column_sidebar_bottom', array(
-                        'page_type' => 'single-column',
-                        'category_ids' => $column_category_ids
-                    )); 
-                    ?>
-                </div>
-            <?php endif; ?>
-
-        </aside>
-
+            </aside>
+        </div>
     </div>
 
-</article>
-
-<!-- モバイル用フローティングボタン -->
-<button class="gus-mobile-toc-cta" id="mobileTocBtn" aria-label="目次とAI質問を開く">
-    <div class="gus-mobile-toc-icon">
-        <span class="gus-mobile-toc-icon-toc" aria-hidden="true">📑</span>
-        <span class="gus-mobile-toc-icon-ai">AI</span>
-    </div>
-</button>
-
-<!-- モバイル用オーバーレイ -->
-<div class="gus-mobile-toc-overlay" id="mobileTocOverlay" aria-hidden="true"></div>
-
-<!-- モバイル用パネル -->
-<div class="gus-mobile-toc-panel" id="mobileTocPanel" role="dialog" aria-labelledby="mobile-panel-title" aria-modal="true">
-    <header class="gus-mobile-toc-header">
-        <h2 class="gus-mobile-toc-title" id="mobile-panel-title">目次 & AI質問</h2>
-        <button class="gus-mobile-toc-close" id="mobileTocClose" aria-label="閉じる">
-            <i class="fas fa-times" aria-hidden="true"></i>
-        </button>
-    </header>
-    
-    <div class="gus-mobile-nav-tabs" role="tablist" aria-label="目次とAI質問の切り替え">
-        <button class="gus-mobile-nav-tab active" data-tab="ai" role="tab" aria-selected="true" aria-controls="aiContent" id="aiTab">
-            <i class="fas fa-robot" aria-hidden="true"></i>
-            AI 質問
-        </button>
-        <button class="gus-mobile-nav-tab" data-tab="toc" role="tab" aria-selected="false" aria-controls="tocContent" id="tocTab">
-            <i class="fas fa-list" aria-hidden="true"></i>
-            📑 目次
-        </button>
-    </div>
-    
-    <div class="gus-mobile-nav-content active" id="aiContent" role="tabpanel" aria-labelledby="aiTab">
-        <div class="gus-ai-chat-messages" id="mobileAiMessages" role="log" aria-live="polite" aria-label="AIチャット">
-            <div class="ai-message ai-message-assistant">
-                <div class="ai-avatar" aria-hidden="true">
-                    <i class="fas fa-robot"></i>
-                </div>
-                <div class="ai-content">
-                    こんにちは！この記事について何でも質問してください。
-                </div>
+    <!-- 関連コラム -->
+    <?php if (!empty($related_columns)): ?>
+    <section class="gic-related">
+        <div class="gic-container">
+            <header class="gic-related-header">
+                <p class="gic-related-en">Related Columns</p>
+                <h2 class="gic-related-title">関連するコラム</h2>
+            </header>
+            <div class="gic-related-grid">
+                <?php foreach ($related_columns as $rel): ?>
+                <a href="<?php echo esc_url($rel['permalink']); ?>" class="gic-related-card">
+                    <div class="gic-related-card-thumb">
+                        <?php if ($rel['thumbnail']): ?>
+                        <img src="<?php echo esc_url($rel['thumbnail']); ?>" alt="<?php echo esc_attr($rel['title']); ?>" loading="lazy">
+                        <?php endif; ?>
+                    </div>
+                    <div class="gic-related-card-body">
+                        <h3 class="gic-related-card-title"><?php echo esc_html($rel['title']); ?></h3>
+                        <div class="gic-related-card-meta">
+                            <span><?php echo esc_html($rel['date']); ?></span>
+                            <span>約<?php echo intval($rel['read_time']); ?>分</span>
+                        </div>
+                    </div>
+                </a>
+                <?php endforeach; ?>
             </div>
         </div>
-        <div class="gus-ai-input-container">
-            <label for="mobileAiInput" class="sr-only">AI質問入力</label>
-            <textarea id="mobileAiInput" 
-                      placeholder="例：この補助金の申請期限は？" 
-                      rows="2"
-                      aria-label="AI質問入力"></textarea>
-            <button id="mobileAiSend" class="gus-ai-send-btn" aria-label="質問を送信">
-                <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                <span class="send-text">送信</span>
-            </button>
-        </div>
+    </section>
+    <?php endif; ?>
+</div>
+
+<!-- モバイルFAB -->
+<div class="gic-mobile-fab">
+    <button class="gic-fab-btn" id="mobileAiBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>AI相談</span>
+    </button>
+</div>
+
+<!-- モバイルパネル -->
+<div class="gic-mobile-overlay" id="mobileOverlay"></div>
+<div class="gic-mobile-panel" id="mobilePanel">
+    <div class="gic-panel-handle"></div>
+    <header class="gic-panel-header">
+        <h2 class="gic-panel-title">AIアシスタント</h2>
+        <button class="gic-panel-close" id="panelClose" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </header>
+    <div class="gic-panel-tabs">
+        <button class="gic-panel-tab active" data-tab="ai">AI質問</button>
+        <button class="gic-panel-tab" data-tab="toc">目次</button>
+        <button class="gic-panel-tab" data-tab="action">アクション</button>
     </div>
-    
-    <div class="gus-mobile-nav-content" id="tocContent" role="tabpanel" aria-labelledby="tocTab" hidden>
-        <nav class="gus-mobile-toc-list" id="mobileTocList" aria-label="記事の目次">
-            <!-- JavaScriptで動的生成 -->
-        </nav>
+    <div class="gic-panel-content">
+        <div class="gic-panel-content-tab active" id="tabAi">
+            <div class="gic-ai-messages" id="mobileAiMessages" style="min-height: 200px; max-height: 300px; margin-bottom: 16px;">
+                <div class="gic-ai-msg">
+                    <div class="gic-ai-avatar">AI</div>
+                    <div class="gic-ai-bubble">この記事について何でもお聞きください。</div>
+                </div>
+            </div>
+            <div class="gic-ai-input-wrap">
+                <textarea class="gic-ai-input" id="mobileAiInput" placeholder="質問を入力..." rows="2"></textarea>
+                <button class="gic-ai-send" id="mobileAiSend" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+            <div class="gic-ai-suggestions" style="margin-top: 12px;">
+                <button class="gic-ai-chip" data-q="この記事のポイントは？">ポイント</button>
+                <button class="gic-ai-chip" data-q="関連する補助金は？">補助金</button>
+            </div>
+        </div>
+        <div class="gic-panel-content-tab" id="tabToc">
+            <nav class="gic-toc-nav" id="mobileTocNav"></nav>
+        </div>
+        <div class="gic-panel-content-tab" id="tabAction">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <a href="<?php echo esc_url(home_url('/subsidy-diagnosis/')); ?>" class="gic-cta-btn gic-cta-btn-primary" style="justify-content: center;">AIで補助金診断</a>
+                <a href="<?php echo esc_url(home_url('/grants/')); ?>" class="gic-cta-btn gic-cta-btn-secondary" style="justify-content: center; background: var(--gic-white); border-color: var(--gic-gray-300); color: var(--gic-black);">補助金一覧を見る</a>
+            </div>
+        </div>
     </div>
 </div>
 
-<?php endwhile; ?>
-
-<?php 
-// モバイル検索モーダルを追加
-get_template_part('template-parts/sidebar/mobile-search-modal'); 
-
-get_footer(); 
-?>
-
-<style>
-/* ============================================
-   Single Column v6.1 - Complete Responsive
-   完全レスポンシブ対応版（スマホ横スクロール完全防止）
-   ============================================ */
-
-:root {
-    --color-primary: #000000;
-    --color-secondary: #ffffff;
-    --color-accent: #ffeb3b;
-    --color-gray-50: #fafafa;
-    --color-gray-100: #f5f5f5;
-    --color-gray-200: #e5e5e5;
-    --color-gray-600: #525252;
-    --color-gray-900: #171717;
-    --sidebar-width: 420px;
-    --header-height: 80px;
-    --mobile-padding: 16px;
-    --tablet-padding: 24px;
-    --desktop-padding: 32px;
-}
-
-/* スクリーンリーダー専用 */
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
-}
-
-/* ============================================
-   基本レイアウト - モバイルファースト
-   ============================================ */
-
-.single-column-responsive {
-    background: var(--color-gray-50);
-    min-height: 100vh;
-    overflow-x: hidden;
-    max-width: 100vw;
-}
-
-.column-layout-container {
-    max-width: 1480px;
-    margin: 0 auto;
-    padding: var(--mobile-padding);
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
-    overflow-x: hidden;
-}
-
-/* タブレット */
-@media (min-width: 768px) {
-    .column-layout-container {
-        padding: var(--tablet-padding);
-        gap: 32px;
-    }
-}
-
-/* デスクトップ */
-@media (min-width: 1024px) {
-    .column-layout-container {
-        padding: var(--desktop-padding);
-        grid-template-columns: 1fr var(--sidebar-width);
-        align-items: start;
-        gap: 40px;
-    }
-}
-
-/* ============================================
-   メインコンテンツ - レスポンシブ
-   ============================================ */
-
-.column-main-content {
-    background: var(--color-secondary);
-    border: 2px solid var(--color-primary);
-    padding: var(--mobile-padding);
-    width: 100%;
-    max-width: 100%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    overflow-x: hidden;
-}
-
-@media (min-width: 768px) {
-    .column-main-content {
-        border: 3px solid var(--color-primary);
-        padding: var(--tablet-padding);
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-main-content {
-        padding: 40px 32px;
-    }
-}
-
-/* ============================================
-   ヘッダーセクション - レスポンシブ
-   ============================================ */
-
-.column-header-section {
-    margin-bottom: 24px;
-    padding-bottom: 20px;
-    border-bottom: 2px solid var(--color-gray-200);
-}
-
-@media (min-width: 768px) {
-    .column-header-section {
-        margin-bottom: 32px;
-        padding-bottom: 24px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-header-section {
-        margin-bottom: 40px;
-        padding-bottom: 32px;
-    }
-}
-
-/* パンくずリスト - レスポンシブ */
-.column-breadcrumb {
-    margin-bottom: 16px;
-}
-
-.column-breadcrumb ol {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    list-style: none;
-    font-size: 12px;
-    color: var(--color-gray-600);
-    flex-wrap: wrap;
-    line-height: 1.6;
-}
-
-@media (min-width: 768px) {
-    .column-breadcrumb {
-        margin-bottom: 20px;
-    }
-    
-    .column-breadcrumb ol {
-        font-size: 14px;
-        gap: 8px;
-    }
-}
-
-.column-breadcrumb a {
-    color: var(--color-gray-600);
-    text-decoration: none;
-    transition: color 0.2s;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-.column-breadcrumb a:hover,
-.column-breadcrumb a:focus {
-    color: var(--color-primary);
-    text-decoration: underline;
-}
-
-.column-breadcrumb i {
-    font-size: 8px;
-}
-
-@media (min-width: 768px) {
-    .column-breadcrumb i {
-        font-size: 10px;
-    }
-}
-
-/* バッジ - レスポンシブ */
-.column-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-@media (min-width: 768px) {
-    .column-badges {
-        gap: 10px;
-        margin-bottom: 20px;
-    }
-}
-
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 700;
-    border: 2px solid;
-    text-decoration: none;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-
-@media (min-width: 768px) {
-    .badge {
-        gap: 6px;
-        padding: 8px 16px;
-        font-size: 14px;
-    }
-}
-
-.badge:hover,
-.badge:focus {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.badge i {
-    font-size: 10px;
-}
-
-@media (min-width: 768px) {
-    .badge i {
-        font-size: 12px;
-    }
-}
-
-.badge-category {
-    background: var(--color-primary);
-    color: var(--color-accent);
-    border-color: var(--color-primary);
-}
-
-.badge-beginner {
-    background: #10b981;
-    color: white;
-    border-color: #10b981;
-}
-
-.badge-intermediate {
-    background: #f59e0b;
-    color: white;
-    border-color: #f59e0b;
-}
-
-.badge-advanced {
-    background: #ef4444;
-    color: white;
-    border-color: #ef4444;
-}
-
-/* タイトル - レスポンシブ */
-.column-title {
-    font-size: 22px;
-    font-weight: 900;
-    color: var(--color-primary);
-    line-height: 1.4;
-    margin: 0 0 16px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    hyphens: auto;
-}
-
-@media (min-width: 480px) {
-    .column-title {
-        font-size: 26px;
-    }
-}
-
-@media (min-width: 768px) {
-    .column-title {
-        font-size: 32px;
-        margin: 0 0 20px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-title {
-        font-size: 36px;
-    }
-}
-
-/* メタ情報 - レスポンシブ */
-.column-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 13px;
-    color: var(--color-gray-600);
-}
-
-@media (min-width: 768px) {
-    .column-meta {
-        gap: 16px;
-        font-size: 15px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-meta {
-        gap: 20px;
-    }
-}
-
-.meta-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-
-@media (min-width: 768px) {
-    .meta-item {
-        gap: 8px;
-    }
-}
-
-.meta-item i {
-    color: var(--color-primary);
-    font-size: 12px;
-}
-
-@media (min-width: 768px) {
-    .meta-item i {
-        font-size: 14px;
-    }
-}
-
-/* アイキャッチ - レスポンシブ */
-.column-thumbnail {
-    margin: 24px 0;
-    border: 2px solid var(--color-primary);
-    overflow: hidden;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .column-thumbnail {
-        margin: 32px 0;
-    }
-}
-
-.column-thumbnail img {
-    width: 100%;
-    height: auto;
-    display: block;
-    max-width: 100%;
-}
-
-/* 対象読者ボックス - レスポンシブ */
-.target-audience-box {
-    background: var(--color-gray-50);
-    border-left: 3px solid var(--color-primary);
-    padding: 16px;
-    margin: 24px 0;
-    max-width: 100%;
-    overflow-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .target-audience-box {
-        border-left-width: 4px;
-        padding: 20px;
-        margin: 28px 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .target-audience-box {
-        padding: 24px;
-        margin: 32px 0;
-    }
-}
-
-.box-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin: 0 0 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-@media (min-width: 768px) {
-    .box-title {
-        font-size: 18px;
-        margin: 0 0 16px;
-        gap: 10px;
-    }
-}
-
-.audience-list {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-@media (min-width: 768px) {
-    .audience-list {
-        gap: 10px;
-    }
-}
-
-.audience-list li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    color: var(--color-gray-600);
-    line-height: 1.6;
-    overflow-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .audience-list li {
-        gap: 10px;
-        font-size: 15px;
-    }
-}
-
-.audience-list i {
-    color: var(--color-primary);
-    flex-shrink: 0;
-}
-
-/* ============================================
-   記事本文 - 完全レスポンシブ（スマホ横スクロール完全防止）
-   ============================================ */
-
-.column-content {
-    font-size: 15px;
-    line-height: 1.8;
-    color: var(--color-gray-900);
-    margin: 24px 0;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    overflow-x: hidden;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .column-content {
-        font-size: 16px;
-        line-height: 1.85;
-        margin: 32px 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-content {
-        font-size: 17px;
-        line-height: 1.9;
-        margin: 40px 0;
-    }
-}
-
-/* 全要素の幅制限を強制 */
-.column-content,
-.column-content * {
-    max-width: 100%;
-    box-sizing: border-box;
-}
-
-.column-content h2 {
-    font-size: 20px;
-    font-weight: 700;
-    margin: 32px 0 16px;
-    padding-bottom: 10px;
-    border-bottom: 3px solid var(--color-primary);
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .column-content h2 {
-        font-size: 24px;
-        margin: 36px 0 18px;
-        padding-bottom: 12px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-content h2 {
-        font-size: 26px;
-        margin: 40px 0 20px;
-    }
-}
-
-.column-content h3 {
-    font-size: 18px;
-    font-weight: 700;
-    margin: 28px 0 14px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .column-content h3 {
-        font-size: 20px;
-        margin: 30px 0 15px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-content h3 {
-        font-size: 22px;
-        margin: 32px 0 16px;
-    }
-}
-
-.column-content p {
-    margin: 16px 0;
-    max-width: 100%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    word-break: break-word;
-}
-
-@media (min-width: 768px) {
-    .column-content p {
-        margin: 18px 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-content p {
-        margin: 20px 0;
-    }
-}
-
-.column-content ul,
-.column-content ol {
-    margin: 16px 0;
-    padding-left: 24px;
-    max-width: 100%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .column-content ul,
-    .column-content ol {
-        margin: 18px 0;
-        padding-left: 26px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-content ul,
-    .column-content ol {
-        margin: 20px 0;
-        padding-left: 28px;
-    }
-}
-
-.column-content li {
-    margin: 8px 0;
-    max-width: 100%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .column-content li {
-        margin: 9px 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-content li {
-        margin: 10px 0;
-    }
-}
-
-/* 画像の完全レスポンシブ化 */
-.column-content img {
-    max-width: 100% !important;
-    height: auto !important;
-    display: block;
-    margin: 20px auto;
-    object-fit: contain;
-}
-
-/* 画像を含むfigure要素 */
-.column-content figure {
-    max-width: 100%;
-    margin: 20px 0;
-    overflow: hidden;
-}
-
-.column-content figure img {
-    width: 100%;
-    height: auto;
-}
-
-/* テーブルの完全レスポンシブ化 */
-.column-content table {
-    display: block;
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin: 20px 0;
-    font-size: 13px;
-    border: 1px solid var(--color-gray-200);
-    border-collapse: collapse;
-}
-
-@media (min-width: 768px) {
-    .column-content table {
-        display: table;
-        font-size: 15px;
-    }
-}
-
-.column-content table th,
-.column-content table td {
-    min-width: 100px;
-    padding: 8px;
-    white-space: nowrap;
-    border: 1px solid var(--color-gray-200);
-    text-align: left;
-}
-
-@media (min-width: 768px) {
-    .column-content table th,
-    .column-content table td {
-        white-space: normal;
-        padding: 12px;
-    }
-}
-
-.column-content th {
-    background: var(--color-gray-100);
-    font-weight: 700;
-}
-
-/* テーブルをスクロール可能にするラッパー */
-.column-content .table-wrapper {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin: 20px 0;
-}
-
-.column-content .table-wrapper table {
-    margin: 0;
-}
-
-/* コードブロックの完全レスポンシブ化 */
-.column-content pre {
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: pre;
-    word-wrap: normal;
-    word-break: normal;
-    margin: 20px 0;
-    padding: 12px;
-    font-size: 12px;
-    line-height: 1.5;
-    background: var(--color-gray-100);
-    border: 1px solid var(--color-gray-200);
-    border-radius: 4px;
-}
-
-@media (min-width: 768px) {
-    .column-content pre {
-        padding: 16px;
-        font-size: 14px;
-        line-height: 1.6;
-    }
-}
-
-.column-content code {
-    max-width: 100%;
-    overflow-wrap: break-word;
-    word-break: break-all;
-    background: var(--color-gray-100);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.9em;
-    font-family: 'Courier New', Courier, monospace;
-}
-
-.column-content pre code {
-    display: block;
-    overflow-x: auto;
-    white-space: pre;
-    word-break: normal;
-    background: transparent;
-    padding: 0;
-}
-
-/* 埋め込みコンテンツ（iframe）の完全レスポンシブ化 */
-.column-content iframe,
-.column-content embed,
-.column-content object,
-.column-content video {
-    max-width: 100% !important;
-    height: auto !important;
-}
-
-/* レスポンシブ埋め込みラッパー（16:9） */
-.column-content .embed-responsive {
-    position: relative;
-    width: 100%;
-    padding-bottom: 56.25%; /* 16:9 */
-    height: 0;
-    overflow: hidden;
-    margin: 20px 0;
-}
-
-.column-content .embed-responsive iframe,
-.column-content .embed-responsive embed,
-.column-content .embed-responsive object,
-.column-content .embed-responsive video {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100% !important;
-    height: 100% !important;
-}
-
-/* 引用ブロックの幅制限 */
-.column-content blockquote {
-    max-width: 100%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    word-break: break-word;
-    border-left: 3px solid var(--color-primary);
-    padding-left: 16px;
-    margin: 20px 0;
-    font-style: italic;
-    color: var(--color-gray-600);
-}
-
-@media (min-width: 768px) {
-    .column-content blockquote {
-        border-left-width: 4px;
-        padding-left: 20px;
-    }
-}
-
-/* 長いURL・テキストの折り返し */
-.column-content a {
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    word-break: break-all;
-}
-
-/* 水平線の幅制限 */
-.column-content hr {
-    max-width: 100%;
-    margin: 24px 0;
-    border: none;
-    border-top: 2px solid var(--color-gray-200);
-}
-
-/* WordPress Gutenbergブロックの対応 */
-.column-content .wp-block-image,
-.column-content .wp-block-embed,
-.column-content .wp-block-video,
-.column-content .wp-block-audio {
-    max-width: 100%;
-    margin: 20px 0;
-}
-
-.column-content .wp-block-image img {
-    width: 100%;
-    height: auto;
-}
-
-/* WordPressギャラリーの対応 */
-.column-content .wp-block-gallery,
-.column-content .blocks-gallery-grid {
-    max-width: 100%;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px;
-    margin: 20px 0;
-}
-
-@media (min-width: 768px) {
-    .column-content .wp-block-gallery,
-    .column-content .blocks-gallery-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-    }
-}
-
-/* カラムブロックの対応 */
-.column-content .wp-block-columns {
-    display: block;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .column-content .wp-block-columns {
-        display: flex;
-        gap: 20px;
-    }
-}
-
-.column-content .wp-block-column {
-    max-width: 100%;
-    flex: 1;
-    margin-bottom: 20px;
-}
-
-@media (min-width: 768px) {
-    .column-content .wp-block-column {
-        margin-bottom: 0;
-    }
-}
-
-/* ボタンブロックの対応 */
-.column-content .wp-block-button {
-    max-width: 100%;
-    margin: 20px 0;
-}
-
-.column-content .wp-block-button__link {
-    display: inline-block;
-    max-width: 100%;
-    padding: 12px 24px;
-    text-align: center;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-/* 引用ブロックの対応 */
-.column-content .wp-block-quote {
-    max-width: 100%;
-    margin: 20px 0;
-    padding-left: 16px;
-    border-left: 3px solid var(--color-primary);
-}
-
-/* プルクォートの対応 */
-.column-content .wp-block-pullquote {
-    max-width: 100%;
-    margin: 24px 0;
-    padding: 20px;
-    border: 2px solid var(--color-gray-200);
-}
-
-/* スペーサーの対応 */
-.column-content .wp-block-spacer {
-    max-width: 100%;
-}
-
-/* セパレーターの対応 */
-.column-content .wp-block-separator {
-    max-width: 100%;
-    margin: 24px auto;
-}
-
-/* カバーブロックの対応 */
-.column-content .wp-block-cover {
-    max-width: 100%;
-    margin: 20px 0;
-    min-height: 300px;
-}
-
-@media (min-width: 768px) {
-    .column-content .wp-block-cover {
-        min-height: 400px;
-    }
-}
-
-/* メディア＆テキストブロックの対応 */
-.column-content .wp-block-media-text {
-    display: block;
-    max-width: 100%;
-    margin: 20px 0;
-}
-
-@media (min-width: 768px) {
-    .column-content .wp-block-media-text {
-        display: grid;
-        grid-template-columns: 50% 1fr;
-        gap: 20px;
-        align-items: center;
-    }
-}
-
-/* グループブロックの対応 */
-.column-content .wp-block-group {
-    max-width: 100%;
-    margin: 20px 0;
-}
-
-/* 横スクロールの完全防止 */
-@media (max-width: 767px) {
-    body {
-        overflow-x: hidden;
-        max-width: 100vw;
-    }
-    
-    .column-content > * {
-        max-width: 100%;
-    }
-}
-
-/* 非常に長い単語の強制改行 */
-.column-content {
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    word-break: break-word;
-    hyphens: auto;
-}
-
-/* 日本語の禁則処理 */
-.column-content {
-    line-break: strict;
-}
-
-/* 英数字の長い文字列の処理 */
-@media (max-width: 767px) {
-    .column-content {
-        word-break: break-all;
-    }
-}
-
-@media (min-width: 768px) {
-    .column-content {
-        word-break: normal;
-    }
-}
-
-/* ============================================
-   CTAボックス - レスポンシブ
-   ============================================ */
-
-.gus-cta-section {
-    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-    color: #ffffff;
-    padding: 40px 0;
-    margin: 32px calc(-1 * var(--mobile-padding));
-    position: relative;
-    overflow: hidden;
-    max-width: calc(100% + 2 * var(--mobile-padding));
-}
-
-@media (min-width: 768px) {
-    .gus-cta-section {
-        padding: 56px 0;
-        margin: 40px calc(-1 * var(--tablet-padding));
-        max-width: calc(100% + 2 * var(--tablet-padding));
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-section {
-        padding: 64px 0;
-        margin: 48px -32px;
-        max-width: calc(100% + 64px);
-    }
-}
-
-.gus-cta-section::before,
-.gus-cta-section::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #FFD700 0%, #FFA500 100%);
-}
-
-@media (min-width: 768px) {
-    .gus-cta-section::before,
-    .gus-cta-section::after {
-        height: 4px;
-    }
-}
-
-.gus-cta-section::before {
-    top: 0;
-}
-
-.gus-cta-section::after {
-    bottom: 0;
-}
-
-.gus-cta-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 var(--mobile-padding);
-}
-
-@media (min-width: 768px) {
-    .gus-cta-container {
-        padding: 0 var(--tablet-padding);
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-container {
-        padding: 0 var(--desktop-padding);
-    }
-}
-
-.gus-cta-content {
-    text-align: center;
-}
-
-.gus-cta-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 56px;
-    height: 56px;
-    background: rgba(255, 215, 0, 0.1);
-    border-radius: 50%;
-    margin-bottom: 20px;
-    color: #FFD700;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-icon {
-        width: 64px;
-        height: 64px;
-        margin-bottom: 24px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-icon {
-        width: 72px;
-        height: 72px;
-    }
-}
-
-.gus-cta-icon svg {
-    width: 32px;
-    height: 32px;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-icon svg {
-        width: 40px;
-        height: 40px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-icon svg {
-        width: 48px;
-        height: 48px;
-    }
-}
-
-.gus-cta-title {
-    font-size: 1.375rem;
-    font-weight: 700;
-    line-height: 1.4;
-    margin-bottom: 16px;
-    color: #ffffff;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-title {
-        font-size: 1.75rem;
-        margin-bottom: 20px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-title {
-        font-size: 2rem;
-        margin-bottom: 24px;
-    }
-}
-
-.gus-cta-description {
-    font-size: 0.9375rem;
-    line-height: 1.6;
-    margin-bottom: 32px;
-    color: rgba(255, 255, 255, 0.9);
-    max-width: 700px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-description {
-        font-size: 1rem;
-        margin-bottom: 40px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-description {
-        font-size: 1.125rem;
-        margin-bottom: 48px;
-    }
-}
-
-.gus-cta-buttons {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-@media (min-width: 640px) {
-    .gus-cta-buttons {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-buttons {
-        gap: 24px;
-    }
-}
-
-.gus-cta-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 18px 20px;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    text-decoration: none;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    min-height: 70px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-@media (min-width: 768px) {
-    .gus-cta-btn {
-        gap: 14px;
-        padding: 20px 24px;
-        font-size: 1rem;
-        min-height: 80px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-btn {
-        gap: 16px;
-        padding: 24px 32px;
-        min-height: 90px;
-    }
-}
-
-.gus-cta-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.5s ease;
-}
-
-.gus-cta-btn:hover::before {
-    left: 100%;
-}
-
-.gus-cta-btn svg {
-    flex-shrink: 0;
-    width: 20px;
-    height: 20px;
-    transition: transform 0.3s ease;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-btn svg {
-        width: 22px;
-        height: 22px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-btn svg {
-        width: 24px;
-        height: 24px;
-    }
-}
-
-.gus-cta-btn span {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    text-align: left;
-}
-
-.gus-cta-btn strong {
-    font-size: 1rem;
-    font-weight: 700;
-    display: block;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-btn strong {
-        font-size: 1.0625rem;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-cta-btn strong {
-        font-size: 1.125rem;
-    }
-}
-
-.gus-cta-btn small {
-    font-size: 0.8125rem;
-    font-weight: 400;
-    opacity: 0.9;
-    display: block;
-}
-
-@media (min-width: 768px) {
-    .gus-cta-btn small {
-        font-size: 0.875rem;
-    }
-}
-
-.gus-cta-btn-primary {
-    background: #000000;
-    color: #ffffff;
-    border: 2px solid #FFD700;
-}
-
-.gus-cta-btn-primary:hover {
-    background: #FFD700;
-    color: #000000;
-    border-color: #FFD700;
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(255, 215, 0, 0.4);
-}
-
-.gus-cta-btn-primary:hover svg {
-    transform: scale(1.1) rotate(5deg);
-}
-
-.gus-cta-btn-secondary {
-    background: #ffffff;
-    color: #000000;
-    border: 2px solid #e5e5e5;
-}
-
-.gus-cta-btn-secondary:hover {
-    background: #000000;
-    color: #ffffff;
-    border-color: #000000;
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-}
-
-.gus-cta-btn-secondary:hover svg {
-    transform: scale(1.1);
-}
-
-/* ============================================
-   タグ - レスポンシブ
-   ============================================ */
-
-.column-tags {
-    margin: 32px 0;
-    padding: 20px;
-    background: var(--color-gray-50);
-    border: 2px solid var(--color-gray-200);
-    max-width: 100%;
-    overflow-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .column-tags {
-        margin: 36px 0;
-        padding: 24px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-tags {
-        margin: 40px 0;
-    }
-}
-
-.tags-title {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 0 0 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-@media (min-width: 768px) {
-    .tags-title {
-        font-size: 18px;
-        margin: 0 0 16px;
-        gap: 10px;
-    }
-}
-
-.tags-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-@media (min-width: 768px) {
-    .tags-list {
-        gap: 10px;
-    }
-}
-
-.tag-link {
-    display: inline-block;
-    padding: 6px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-primary);
-    background: var(--color-secondary);
-    border: 1px solid var(--color-primary);
-    text-decoration: none;
-    transition: all 0.2s;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .tag-link {
-        padding: 8px 16px;
-        font-size: 14px;
-    }
-}
-
-.tag-link:hover,
-.tag-link:focus {
-    background: var(--color-accent);
-    transform: translateY(-2px);
-}
-
-/* ============================================
-   シェアボタン - レスポンシブ
-   ============================================ */
-
-.column-share {
-    margin: 32px 0;
-    padding: 20px;
-    background: var(--color-primary);
-    color: var(--color-secondary);
-    text-align: center;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .column-share {
-        margin: 36px 0;
-        padding: 24px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .column-share {
-        margin: 40px 0;
-        padding: 28px;
-    }
-}
-
-.share-title {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 0 0 16px;
-}
-
-@media (min-width: 768px) {
-    .share-title {
-        font-size: 18px;
-        margin: 0 0 20px;
-    }
-}
-
-.share-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-@media (min-width: 768px) {
-    .share-buttons {
-        gap: 16px;
-    }
-}
-
-.share-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    border: 2px solid var(--color-secondary);
-    text-decoration: none;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-
-@media (min-width: 768px) {
-    .share-btn {
-        gap: 10px;
-        padding: 12px 24px;
-        font-size: 15px;
-    }
-}
-
-.share-text {
-    display: none;
-}
-
-@media (min-width: 480px) {
-    .share-text {
-        display: inline;
-    }
-}
-
-.share-twitter {
-    background: #1DA1F2;
-    color: white;
-    border-color: #1DA1F2;
-}
-
-.share-facebook {
-    background: #4267B2;
-    color: white;
-    border-color: #4267B2;
-}
-
-.share-line {
-    background: #00B900;
-    color: white;
-    border-color: #00B900;
-}
-
-.share-btn:hover,
-.share-btn:focus {
-    transform: translateY(-2px);
-    opacity: 0.9;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* ============================================
-   関連記事 - レスポンシブ
-   ============================================ */
-
-.related-columns {
-    margin: 40px 0 0;
-    padding: 32px 0 0;
-    border-top: 3px solid var(--color-primary);
-}
-
-@media (min-width: 768px) {
-    .related-columns {
-        margin: 48px 0 0;
-        padding: 36px 0 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .related-columns {
-        margin: 56px 0 0;
-        padding: 40px 0 0;
-    }
-}
-
-.related-title {
-    font-size: 18px;
-    font-weight: 700;
-    margin: 0 0 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-@media (min-width: 768px) {
-    .related-title {
-        font-size: 20px;
-        margin: 0 0 24px;
-        gap: 10px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .related-title {
-        font-size: 22px;
-        margin: 0 0 28px;
-    }
-}
-
-.related-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 20px;
-}
-
-@media (min-width: 640px) {
-    .related-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 24px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .related-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-/* ============================================
-   サイドバー - デスクトップのみ
-   ============================================ */
-
-.column-sidebar {
-    display: none;
-}
-
-@media (min-width: 1024px) {
-    .column-sidebar {
-        display: flex;
-        flex-direction: column;
-        gap: 28px;
-        position: sticky;
-        top: calc(var(--header-height) + 20px);
-        overflow-y: auto;
-        overflow-x: hidden;
-        align-self: flex-start;
-        scrollbar-width: thin;
-        scrollbar-color: var(--color-gray-200) transparent;
-        max-width: 100%;
-    }
-    
-    .column-sidebar::-webkit-scrollbar {
-        width: 6px;
-    }
-    
-    .column-sidebar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    
-    .column-sidebar::-webkit-scrollbar-thumb {
-        background-color: var(--color-gray-200);
-        border-radius: 3px;
-    }
-    
-    .column-sidebar::-webkit-scrollbar-thumb:hover {
-        background-color: var(--color-gray-600);
-    }
-}
-
-.sidebar-card {
-    background: var(--color-secondary);
-    border: 3px solid var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    transition: box-shadow 0.2s;
-    max-width: 100%;
-    overflow: hidden;
-}
-
-.sidebar-card:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-.sidebar-ad-space {
-    background: #FAFAFA !important;
-    border: 2px dashed #E5E5E5 !important;
-    padding: 16px !important;
-    min-height: 250px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.sidebar-ad-space:hover {
-    border-color: #CCCCCC !important;
-    background: #F5F5F5 !important;
-}
-
-.sidebar-ad-space:empty {
-    display: none;
-}
-
-.card-header {
-    background: var(--color-primary);
-    color: var(--color-accent);
-    padding: 18px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.card-header h2 {
-    font-size: 17px;
-    font-weight: 700;
-    margin: 0;
-    color: var(--color-accent);
-}
-
-.card-header i,
-.card-header svg {
-    font-size: 20px;
-    color: var(--color-accent);
-}
-
-.card-header-grants {
-    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-    border-bottom: 3px solid var(--color-accent);
-}
-
-.card-header-grants h2 {
-    color: #ffffff;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-}
-
-.card-header-grants svg {
-    color: var(--color-accent);
-    filter: drop-shadow(0 0 2px rgba(255, 235, 59, 0.5));
-}
-
-.card-header-ai {
-    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-    border-bottom: 3px solid #60a5fa;
-}
-
-.card-header-ai h2 {
-    color: #ffffff;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-}
-
-.card-header-ai i {
-    color: #60a5fa;
-    filter: drop-shadow(0 0 2px rgba(96, 165, 250, 0.5));
-}
-
-.card-body {
-    padding: 24px;
-}
-
-/* AIチャットカード - デスクトップ専用 */
-.ai-chat-card {
-    display: none;
-}
-
-@media (min-width: 1024px) {
-    .ai-chat-card {
-        display: block;
-    }
-}
-
-.ai-chat-intro {
-    margin-bottom: 16px;
-    padding: 12px;
-    background: #eff6ff;
-    border-left: 3px solid #2563eb;
-    border-radius: 4px;
-}
-
-.ai-chat-intro p {
-    margin: 0;
-    font-size: 14px;
-    color: #1e40af;
-    line-height: 1.5;
-}
-
-.desktop-ai-chat-messages {
-    max-height: 300px;
-    overflow-y: auto;
-    margin-bottom: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px;
-    background: #f8fafc;
-    border-radius: 8px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-gray-200) transparent;
-}
-
-.desktop-ai-chat-messages::-webkit-scrollbar {
-    width: 6px;
-}
-
-.desktop-ai-chat-messages::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.desktop-ai-chat-messages::-webkit-scrollbar-thumb {
-    background-color: var(--color-gray-200);
-    border-radius: 3px;
-}
-
-.desktop-ai-chat-messages::-webkit-scrollbar-thumb:hover {
-    background-color: var(--color-gray-600);
-}
-
-.desktop-ai-input-container {
-    display: flex;
-    gap: 8px;
-}
-
-.desktop-ai-input-container textarea {
-    flex: 1;
-    padding: 10px 12px;
-    border: 2px solid var(--color-gray-200);
-    border-radius: 8px;
-    font-size: 14px;
-    font-family: inherit;
-    resize: none;
-    line-height: 1.5;
-    transition: border-color 0.2s;
-}
-
-.desktop-ai-input-container textarea:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.desktop-ai-send-btn {
-    padding: 10px 16px;
-    background: #2563eb;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-
-.desktop-ai-send-btn:hover,
-.desktop-ai-send-btn:focus {
-    background: #1e40af;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
-
-.desktop-ai-send-btn:active {
-    transform: translateY(0);
-}
-
-.toc-nav {
-    font-size: 15px;
-}
-
-.toc-nav ul {
-    list-style: none;
-    padding: 0;
-}
-
-.toc-nav li {
-    margin: 10px 0;
-}
-
-.toc-nav a {
-    color: var(--color-gray-600);
-    text-decoration: none;
-    display: block;
-    padding: 6px 0;
-    transition: color 0.2s;
-    line-height: 1.6;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-.toc-nav a:hover,
-.toc-nav a:focus {
-    color: var(--color-primary);
-    text-decoration: underline;
-}
-
-.related-grants-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.related-grant-item {
-    border: 1px solid #e5e5e5;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    overflow: hidden;
-}
-
-.related-grant-item:hover {
-    border-color: #0073aa;
-    box-shadow: 0 2px 8px rgba(0, 115, 170, 0.1);
-}
-
-.related-grant-link {
-    display: block;
-    padding: 12px;
-    text-decoration: none;
-    color: inherit;
-}
-
-.related-grant-title {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    margin: 0 0 8px 0;
-    color: #1a1a1a;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-.related-grant-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 8px;
-}
-
-.related-grant-meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.grant-amount {
-    color: #00a32a;
-    font-weight: 600;
-}
-
-.grant-deadline {
-    color: #d63638;
-}
-
-.grant-status {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.status-open {
-    background: #e8f5e9;
-    color: #1b5e20;
-}
-
-.view-all-grants {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 16px;
-    padding: 10px;
-    background: #f0f0f0;
-    border-radius: 6px;
-    text-decoration: none;
-    color: #0073aa;
-    font-size: 14px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-
-.view-all-grants:hover {
-    background: #0073aa;
-    color: #fff;
-}
-
-.popular-list {
-    list-style: none;
-}
-
-.popular-list li {
-    margin: 14px 0;
-}
-
-.popular-list a {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    text-decoration: none;
-    color: var(--color-gray-900);
-    transition: color 0.2s;
-}
-
-.popular-list a:hover,
-.popular-list a:focus {
-    color: var(--color-primary);
-}
-
-.popular-rank {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    background: var(--color-primary);
-    color: var(--color-accent);
-    font-size: 13px;
-    font-weight: 700;
-    flex-shrink: 0;
-}
-
-.popular-title {
-    flex: 1;
-    font-size: 15px;
-    line-height: 1.6;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-/* ============================================
-   モバイル用補助金情報
-   ============================================ */
-
-.mobile-related-grants {
-    display: block;
-    margin: 32px 0;
-    padding: 20px;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 12px;
-    max-width: 100%;
-    overflow: hidden;
-}
-
-@media (min-width: 768px) {
-    .mobile-related-grants {
-        margin: 36px 0;
-        padding: 24px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .mobile-related-grants {
-        display: none;
-    }
-}
-
-.mobile-related-grants .section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 18px;
-    font-weight: 700;
-    margin: 0 0 16px 0;
-    color: #1a1a1a;
-}
-
-@media (min-width: 768px) {
-    .mobile-related-grants .section-title {
-        gap: 10px;
-        font-size: 20px;
-        margin: 0 0 20px 0;
-    }
-}
-
-.mobile-related-grants .section-title svg {
-    flex-shrink: 0;
-    color: #0073aa;
-    width: 20px;
-    height: 20px;
-}
-
-@media (min-width: 768px) {
-    .mobile-related-grants .section-title svg {
-        width: 24px;
-        height: 24px;
-    }
-}
-
-.mobile-grants-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-
-@media (min-width: 640px) {
-    .mobile-grants-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-}
-
-.mobile-grant-card {
-    background: #fff;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
-}
-
-.mobile-grant-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateY(-2px);
-}
-
-.mobile-grant-link {
-    display: block;
-    padding: 16px;
-    text-decoration: none;
-    color: inherit;
-}
-
-@media (min-width: 768px) {
-    .mobile-grant-link {
-        padding: 20px;
-    }
-}
-
-.mobile-grant-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    background: #0073aa;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    border-radius: 4px;
-    margin-bottom: 10px;
-}
-
-.mobile-grant-title {
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1.4;
-    margin: 0 0 12px 0;
-    color: #1a1a1a;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .mobile-grant-title {
-        font-size: 16px;
-    }
-}
-
-.mobile-grant-info {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 12px;
-    margin-bottom: 12px;
-}
-
-@media (min-width: 768px) {
-    .mobile-grant-info {
-        gap: 12px;
-        font-size: 13px;
-    }
-}
-
-.mobile-grant-amount {
-    color: #00a32a;
-    font-weight: 600;
-}
-
-.mobile-grant-deadline {
-    color: #d63638;
-}
-
-.mobile-grant-cta {
-    display: inline-flex;
-    align-items: center;
-    color: #0073aa;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-@media (min-width: 768px) {
-    .mobile-grant-cta {
-        font-size: 14px;
-    }
-}
-
-.mobile-view-all-grants {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px;
-    background: #0073aa;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 700;
-    transition: all 0.2s ease;
-}
-
-@media (min-width: 768px) {
-    .mobile-view-all-grants {
-        gap: 8px;
-        padding: 14px;
-        font-size: 15px;
-    }
-}
-
-.mobile-view-all-grants:hover {
-    background: #005177;
-}
-
-.mobile-view-all-grants svg {
-    width: 16px;
-    height: 16px;
-}
-
-@media (min-width: 768px) {
-    .mobile-view-all-grants svg {
-        width: 18px;
-        height: 18px;
-    }
-}
-
-/* ============================================
-   モバイルパネル - 完全レスポンシブ
-   ============================================ */
-
-.gus-mobile-toc-cta {
-    display: flex;
-    position: fixed;
-    bottom: 70px;
-    right: 12px;
-    z-index: 999;
-    background: var(--color-gray-900);
-    color: var(--color-secondary);
-    border: none;
-    border-radius: 50%;
-    width: 56px;
-    height: 56px;
-    cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
-    align-items: center;
-    justify-content: center;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-cta {
-        bottom: 80px;
-        right: 16px;
-        width: 60px;
-        height: 60px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .gus-mobile-toc-cta {
-        display: flex;
-    }
-}
-
-.gus-mobile-toc-cta:hover,
-.gus-mobile-toc-cta:focus {
-    transform: scale(1.1);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-}
-
-.gus-mobile-toc-icon {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-}
-
-.gus-mobile-toc-icon-toc {
-    font-size: 16px;
-    line-height: 1;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-icon-toc {
-        font-size: 18px;
-    }
-}
-
-.gus-mobile-toc-icon-ai {
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-icon-ai {
-        font-size: 11px;
-    }
-}
-
-.gus-mobile-toc-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.gus-mobile-toc-overlay.active {
-    display: block;
-    opacity: 1;
-}
-
-.gus-mobile-toc-panel {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--color-secondary);
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
-    z-index: 1001;
-    max-height: 70vh;
-    display: flex;
-    flex-direction: column;
-    transform: translateY(100%);
-    transition: transform 0.3s ease;
-    max-width: 100vw;
-    overflow: hidden;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-panel {
-        border-top-left-radius: 20px;
-        border-top-right-radius: 20px;
-        max-height: 75vh;
-    }
-}
-
-.gus-mobile-toc-panel.active {
-    transform: translateY(0);
-}
-
-.gus-mobile-toc-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 2px solid var(--color-gray-200);
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-header {
-        padding: 20px 24px;
-    }
-}
-
-.gus-mobile-toc-title {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--color-gray-900);
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-title {
-        font-size: 19px;
-    }
-}
-
-.gus-mobile-toc-close {
-    background: transparent;
-    border: none;
-    color: var(--color-gray-600);
-    font-size: 24px;
-    cursor: pointer;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.2s;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-close {
-        font-size: 26px;
-        width: 36px;
-        height: 36px;
-    }
-}
-
-.gus-mobile-toc-close:hover,
-.gus-mobile-toc-close:focus {
-    color: var(--color-primary);
-}
-
-.gus-mobile-nav-tabs {
-    display: flex;
-    border-bottom: 2px solid var(--color-gray-200);
-    background: var(--color-gray-50);
-}
-
-.gus-mobile-nav-tab {
-    flex: 1;
-    padding: 12px 16px;
-    background: transparent;
-    border: none;
-    border-bottom: 3px solid transparent;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--color-gray-600);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-nav-tab {
-        padding: 14px 20px;
-        font-size: 16px;
-        gap: 8px;
-    }
-}
-
-.gus-mobile-nav-tab:hover,
-.gus-mobile-nav-tab:focus {
-    background: var(--color-gray-100);
-}
-
-.gus-mobile-nav-tab.active {
-    color: var(--color-primary);
-    background: var(--color-secondary);
-    border-bottom-color: var(--color-primary);
-}
-
-.gus-mobile-nav-content {
-    display: none;
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-nav-content {
-        padding: 24px;
-    }
-}
-
-.gus-mobile-nav-content.active {
-    display: flex;
-    flex-direction: column;
-}
-
-.gus-ai-chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    margin-bottom: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-@media (min-width: 768px) {
-    .gus-ai-chat-messages {
-        margin-bottom: 20px;
-        gap: 14px;
-    }
-}
-
-.ai-message {
-    display: flex;
-    gap: 10px;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .ai-message {
-        gap: 12px;
-    }
-}
-
-.ai-message-assistant {
-    align-self: flex-start;
-}
-
-.ai-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--color-primary);
-    color: var(--color-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 16px;
-}
-
-@media (min-width: 768px) {
-    .ai-avatar {
-        width: 36px;
-        height: 36px;
-        font-size: 18px;
-    }
-}
-
-.ai-content {
-    background: var(--color-gray-100);
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 14px;
-    line-height: 1.6;
-    max-width: 80%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .ai-content {
-        padding: 12px 16px;
-        font-size: 15px;
-        line-height: 1.7;
-    }
-}
-
-.gus-ai-input-container {
-    display: flex;
-    gap: 8px;
-    padding-top: 12px;
-    border-top: 2px solid var(--color-gray-200);
-}
-
-@media (min-width: 768px) {
-    .gus-ai-input-container {
-        gap: 10px;
-        padding-top: 16px;
-    }
-}
-
-.gus-ai-input-container textarea {
-    flex: 1;
-    padding: 10px 12px;
-    border: 2px solid var(--color-gray-200);
-    border-radius: 10px;
-    font-size: 14px;
-    font-family: inherit;
-    resize: none;
-    line-height: 1.5;
-    max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .gus-ai-input-container textarea {
-        padding: 12px 14px;
-        font-size: 15px;
-    }
-}
-
-.gus-ai-input-container textarea:focus {
-    outline: none;
-    border-color: var(--color-primary);
-}
-
-.gus-ai-send-btn {
-    padding: 10px 14px;
-    background: var(--color-primary);
-    color: var(--color-secondary);
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-
-@media (min-width: 768px) {
-    .gus-ai-send-btn {
-        padding: 12px 18px;
-        font-size: 15px;
-        gap: 8px;
-    }
-}
-
-.gus-ai-send-btn:hover,
-.gus-ai-send-btn:focus {
-    background: var(--color-gray-900);
-}
-
-.send-text {
-    display: none;
-}
-
-@media (min-width: 480px) {
-    .send-text {
-        display: inline;
-    }
-}
-
-.gus-mobile-toc-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-list {
-        gap: 6px;
-    }
-}
-
-.gus-mobile-toc-list ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.gus-mobile-toc-list li {
-    margin: 0;
-}
-
-.gus-mobile-toc-list a {
-    display: block;
-    padding: 10px 12px;
-    font-size: 14px;
-    color: var(--color-gray-900);
-    text-decoration: none;
-    border-left: 3px solid transparent;
-    transition: all 0.2s ease;
-    line-height: 1.6;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-list a {
-        padding: 12px 14px;
-        font-size: 15px;
-    }
-}
-
-.gus-mobile-toc-list a:hover,
-.gus-mobile-toc-list a:focus {
-    background: var(--color-gray-50);
-    border-left-color: var(--color-primary);
-}
-
-.gus-mobile-toc-list li[data-level="2"] a {
-    padding-left: 24px;
-    font-size: 13px;
-}
-
-@media (min-width: 768px) {
-    .gus-mobile-toc-list li[data-level="2"] a {
-        padding-left: 28px;
-        font-size: 14px;
-    }
-}
-
-/* ============================================
-   タッチデバイス最適化
-   ============================================ */
-
-@media (hover: none) and (pointer: coarse) {
-    /* タップ領域を広げる */
-    .badge,
-    .tag-link,
-    .share-btn,
-    .gus-cta-btn,
-    .mobile-grant-link,
-    .related-grant-link,
-    .gus-mobile-nav-tab,
-    .gus-mobile-toc-list a {
-        min-height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    /* ホバー効果を無効化 */
-    .badge:hover,
-    .tag-link:hover,
-    .share-btn:hover,
-    .gus-cta-btn:hover,
-    .mobile-grant-card:hover,
-    .related-grant-item:hover,
-    .sidebar-card:hover {
-        transform: none;
-    }
-    
-    /* タップ時のフィードバック */
-    .badge:active,
-    .tag-link:active,
-    .share-btn:active,
-    .gus-cta-btn:active,
-    .mobile-grant-link:active,
-    .related-grant-link:active {
-        opacity: 0.8;
-        transform: scale(0.98);
-    }
-}
-
-/* ============================================
-   アクセシビリティ
-   ============================================ */
-
-@media (prefers-reduced-motion: reduce) {
-    * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-}
-
-@media (prefers-contrast: high) {
-    .card-header {
-        border: 2px solid var(--color-accent);
-    }
-    
-    .card-header-grants {
-        border: 3px solid var(--color-accent);
-    }
-    
-    .badge,
-    .tag-link,
-    .share-btn {
-        border-width: 3px;
-    }
-}
-
-/* ============================================
-   印刷スタイル
-   ============================================ */
-
-@media print {
-    .column-sidebar,
-    .gus-mobile-toc-cta,
-    .gus-mobile-toc-overlay,
-    .gus-mobile-toc-panel,
-    .column-share,
-    .related-columns,
-    .mobile-related-grants,
-    .gus-cta-section,
-    .sidebar-ad-space {
-        display: none !important;
-    }
-    
-    .column-layout-container {
-        grid-template-columns: 1fr;
-        max-width: 100%;
-    }
-    
-    .column-main-content {
-        border: none;
-        padding: 0;
-    }
-    
-    .column-content {
-        font-size: 12pt;
-        line-height: 1.6;
-    }
-    
-    .column-content a {
-        color: #000;
-        text-decoration: underline;
-    }
-    
-    .column-content a[href]:after {
-        content: " (" attr(href) ")";
-        font-size: 0.9em;
-        color: #666;
-    }
-}
-</style>
+<div class="gic-toast" id="gicToast"></div>
 
 <script>
-(function() {
+document.addEventListener('DOMContentLoaded', function() {
     'use strict';
     
-    // 目次自動生成
+    var CONFIG = {
+        postId: <?php echo $post_id; ?>,
+        ajaxUrl: '<?php echo admin_url("admin-ajax.php"); ?>',
+        nonce: '<?php echo wp_create_nonce("gic_ai_nonce"); ?>',
+        url: '<?php echo esc_js($canonical_url); ?>',
+        title: <?php echo json_encode($post_title, JSON_UNESCAPED_UNICODE); ?>
+    };
+    
+    // プログレスバー
+    var progress = document.getElementById('progressBar');
+    function updateProgress() {
+        var h = document.documentElement.scrollHeight - window.innerHeight;
+        var p = h > 0 ? Math.min(100, (window.pageYOffset / h) * 100) : 0;
+        if (progress) progress.style.width = p + '%';
+    }
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    
+    // 目次生成
     function generateTOC() {
-        const content = document.querySelector('.column-content');
-        const tocNav = document.getElementById('toc-nav');
-        const mobileTocList = document.getElementById('mobileTocList');
+        var content = document.querySelector('.gic-content');
+        var tocNav = document.getElementById('tocNav');
+        var mobileTocNav = document.getElementById('mobileTocNav');
         
         if (!content) return;
         
-        const headings = content.querySelectorAll('h2, h3');
+        var headings = content.querySelectorAll('h2, h3');
         if (headings.length === 0) {
-            if (tocNav) {
-                tocNav.innerHTML = '<p style="font-size: 15px; color: #999; padding: 12px 0;">目次がありません</p>';
-            }
-            if (mobileTocList) {
-                mobileTocList.innerHTML = '<p style="font-size: 15px; color: #999; padding: 24px;">目次がありません</p>';
-            }
+            if (tocNav) tocNav.innerHTML = '<p style="color: #888; font-size: 14px;">目次がありません</p>';
+            if (mobileTocNav) mobileTocNav.innerHTML = '<p style="color: #888; font-size: 14px;">目次がありません</p>';
             return;
         }
         
-        if (tocNav) {
-            let tocHTML = '<ul>';
-            headings.forEach((heading, index) => {
-                const id = 'heading-' + index;
-                heading.id = id;
-                
-                const level = heading.tagName === 'H2' ? 1 : 2;
-                const indent = level === 2 ? 'padding-left: 20px;' : '';
-                
-                tocHTML += `<li style="${indent}"><a href="#${id}">${heading.textContent}</a></li>`;
-            });
-            tocHTML += '</ul>';
-            tocNav.innerHTML = tocHTML;
-        }
+        var tocHTML = '<ul>';
+        headings.forEach(function(heading, index) {
+            var id = 'heading-' + index;
+            heading.id = id;
+            var level = heading.tagName === 'H2' ? 'toc-h2' : 'toc-h3';
+            tocHTML += '<li><a href="#' + id + '" class="' + level + '">' + heading.textContent + '</a></li>';
+        });
+        tocHTML += '</ul>';
         
-        if (mobileTocList) {
-            let mobileTocHTML = '<ul>';
-            headings.forEach((heading, index) => {
-                const id = heading.id || 'heading-' + index;
-                heading.id = id;
-                
-                const level = heading.tagName === 'H2' ? 1 : 2;
-                
-                mobileTocHTML += `<li data-level="${level}"><a href="#${id}">${heading.textContent}</a></li>`;
-            });
-            mobileTocHTML += '</ul>';
-            mobileTocList.innerHTML = mobileTocHTML;
-            
-            mobileTocList.querySelectorAll('a').forEach(link => {
-                link.addEventListener('click', function() {
-                    closeMobilePanel();
-                });
+        if (tocNav) tocNav.innerHTML = tocHTML;
+        if (mobileTocNav) {
+            mobileTocNav.innerHTML = tocHTML;
+            mobileTocNav.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', closePanel);
             });
         }
     }
+    generateTOC();
     
-    // テーブルを自動的にラッパーで囲む
-    function wrapTables() {
-        const tables = document.querySelectorAll('.column-content > table');
-        tables.forEach(table => {
-            if (!table.parentElement.classList.contains('table-wrapper')) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'table-wrapper';
-                table.parentNode.insertBefore(wrapper, table);
-                wrapper.appendChild(table);
-            }
-        });
-    }
-    
-    // iframeを自動的にレスポンシブラッパーで囲む
-    function wrapEmbeds() {
-        const iframes = document.querySelectorAll('.column-content iframe:not(.embed-responsive iframe)');
-        iframes.forEach(iframe => {
-            // YouTubeやVimeoなどの埋め込み動画
-            if (iframe.src.includes('youtube.com') || 
-                iframe.src.includes('vimeo.com') ||
-                iframe.src.includes('dailymotion.com')) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'embed-responsive';
-                iframe.parentNode.insertBefore(wrapper, iframe);
-                wrapper.appendChild(iframe);
-            }
-        });
-    }
-    
-    // 横スクロール検知（デバッグ用）
-    function detectHorizontalScroll() {
-        const content = document.querySelector('.column-content');
-        if (!content) return;
+    // AI送信
+    function sendAiMessage(input, container, btn) {
+        var question = input.value.trim();
+        if (!question) return;
         
-        const elements = content.querySelectorAll('*');
-        elements.forEach(el => {
-            if (el.scrollWidth > el.clientWidth) {
-                console.warn('[Horizontal Scroll Detected]', el.tagName, el.className, 'scrollWidth:', el.scrollWidth, 'clientWidth:', el.clientWidth);
-            }
-        });
-    }
-    
-    // AI送信処理（モバイル）
-    function initMobileAI() {
-        const sendBtn = document.getElementById('mobileAiSend');
-        const input = document.getElementById('mobileAiInput');
-        const container = document.getElementById('mobileAiMessages');
-        
-        if (!sendBtn || !input || !container) return;
-        
-        sendBtn.addEventListener('click', function() {
-            const question = input.value.trim();
-            if (!question) return;
-            
-            sendAIMessage(question, container, input);
-        });
-        
-        input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendBtn.click();
-            }
-        });
-    }
-    
-    // AI送信処理（デスクトップ）
-    function initDesktopAI() {
-        const sendBtn = document.getElementById('desktopAiSend');
-        const input = document.getElementById('desktopAiInput');
-        const container = document.getElementById('desktopAiMessages');
-        
-        if (!sendBtn || !input || !container) return;
-        
-        sendBtn.addEventListener('click', function() {
-            const question = input.value.trim();
-            if (!question) return;
-            
-            sendAIMessage(question, container, input);
-        });
-        
-        input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendBtn.click();
-            }
-        });
-    }
-    
-    // AI共通送信処理
-    function sendAIMessage(question, container, input) {
-        const userMsg = document.createElement('div');
-        userMsg.className = 'ai-message';
-        userMsg.innerHTML = `
-            <div class="ai-avatar" style="background: var(--color-accent); color: var(--color-primary);" aria-hidden="true">
-                <i class="fas fa-user"></i>
-            </div>
-            <div class="ai-content" style="background: var(--color-primary); color: var(--color-secondary);">
-                ${escapeHtml(question)}
-            </div>
-        `;
-        container.appendChild(userMsg);
-        
+        addMessage(container, question, 'user');
         input.value = '';
+        btn.disabled = true;
         
-        const loadingMsg = document.createElement('div');
-        loadingMsg.className = 'ai-message ai-message-assistant ai-loading';
-        loadingMsg.innerHTML = `
-            <div class="ai-avatar" aria-hidden="true">
-                <i class="fas fa-robot"></i>
-            </div>
-            <div class="ai-content">
-                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> 考え中...
-            </div>
-        `;
+        var loadingMsg = document.createElement('div');
+        loadingMsg.className = 'gic-ai-msg';
+        loadingMsg.innerHTML = '<div class="gic-ai-avatar">AI</div><div class="gic-ai-bubble">考え中...</div>';
         container.appendChild(loadingMsg);
         container.scrollTop = container.scrollHeight;
         
-        callAIAPI(question)
-            .then(response => {
-                loadingMsg.remove();
-                
-                const aiMsg = document.createElement('div');
-                aiMsg.className = 'ai-message ai-message-assistant';
-                aiMsg.innerHTML = `
-                    <div class="ai-avatar" aria-hidden="true">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="ai-content">
-                        ${formatAIResponse(response)}
-                    </div>
-                `;
-                container.appendChild(aiMsg);
-                container.scrollTop = container.scrollHeight;
-            })
-            .catch(error => {
-                loadingMsg.remove();
-                
-                const errorMsg = document.createElement('div');
-                errorMsg.className = 'ai-message ai-message-assistant';
-                errorMsg.innerHTML = `
-                    <div class="ai-avatar" aria-hidden="true">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="ai-content" style="color: #dc2626;">
-                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> 
-                        申し訳ございません。エラーが発生しました。もう一度お試しください。
-                    </div>
-                `;
-                container.appendChild(errorMsg);
-                container.scrollTop = container.scrollHeight;
-                
-                console.error('[AI Error]', error);
-            });
-    }
-    
-    // AI API呼び出し
-    function callAIAPI(question) {
-        const content = document.querySelector('.column-content');
-        const title = document.querySelector('.column-title');
-        const contentText = content ? content.innerText : '';
-        const titleText = title ? title.innerText : '';
+        var formData = new FormData();
+        formData.append('action', 'gic_ai_chat');
+        formData.append('nonce', CONFIG.nonce);
+        formData.append('post_id', CONFIG.postId);
+        formData.append('question', question);
         
-        const apiUrl = window.wpApiSettings ? window.wpApiSettings.root + 'gi-api/v1/ai-chat' : '/wp-json/gi-api/v1/ai-chat';
-        const nonce = window.wpApiSettings && window.wpApiSettings.nonce ? window.wpApiSettings.nonce : '';
-        
-        return fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': nonce
-            },
-            body: JSON.stringify({
-                question: question,
-                context: {
-                    title: titleText,
-                    content: contentText.substring(0, 3000),
-                    type: 'column'
+        fetch(CONFIG.ajaxUrl, { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loadingMsg.remove();
+                if (data.success && data.data && data.data.answer) {
+                    addMessage(container, data.data.answer, 'ai');
+                } else {
+                    addMessage(container, generateFallback(question), 'ai');
                 }
             })
-        })
-        .then(response => {
-            if (!response.ok) {
-                return callAIAPI_AJAX(question, titleText, contentText);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (typeof data === 'string') {
-                return data;
-            }
-            if (data && data.success && data.data && (data.data.answer || data.data.response)) {
-                return data.data.answer || data.data.response;
-            } else if (data && typeof data === 'object' && (data.answer || data.response)) {
-                return data.answer || data.response;
-            } else {
-                return generateFallbackResponse(question);
-            }
-        })
-        .catch(error => {
-            return callAIAPI_AJAX(question, titleText, contentText);
-        });
-    }
-        // AJAX Fallback
-    function callAIAPI_AJAX(question, titleText, contentText) {
-        const ajaxUrl = (window.ajaxSettings && window.ajaxSettings.ajaxurl) || window.ajaxurl || '/wp-admin/admin-ajax.php';
-        const nonce = window.wpApiSettings && window.wpApiSettings.nonce ? window.wpApiSettings.nonce : '';
-        
-        const formData = new FormData();
-        formData.append('action', 'gi_contextual_chat');
-        formData.append('nonce', nonce);
-        formData.append('message', question);
-        formData.append('context', JSON.stringify({
-            title: titleText,
-            content: contentText.substring(0, 3000),
-            type: 'column'
-        }));
-        
-        return fetch(ajaxUrl, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.success && data.data && (data.data.answer || data.data.response)) {
-                return data.data.answer || data.data.response;
-            } else if (data && typeof data === 'object' && (data.answer || data.response)) {
-                return data.answer || data.response;
-            } else {
-                return generateFallbackResponse(question);
-            }
-        })
-        .catch(error => {
-            console.warn('[AI AJAX] Request failed, using fallback:', error);
-            return generateFallbackResponse(question);
-        });
+            .catch(function() {
+                loadingMsg.remove();
+                addMessage(container, generateFallback(question), 'ai');
+            })
+            .finally(function() { btn.disabled = false; });
     }
     
-    // フォールバックレスポンス生成
-    function generateFallbackResponse(question) {
-        const lowerQ = question.toLowerCase();
-        
-        if (lowerQ.includes('期限') || lowerQ.includes('締切') || lowerQ.includes('いつまで')) {
-            return 'この記事の「申請期限」または「スケジュール」のセクションをご確認ください。補助金の締切情報が記載されています。';
-        }
-        if (lowerQ.includes('条件') || lowerQ.includes('要件') || lowerQ.includes('対象')) {
-            return 'この記事の「申請条件」または「対象者」のセクションに詳細が記載されています。ご自身の事業が対象となるかご確認ください。';
-        }
-        if (lowerQ.includes('金額') || lowerQ.includes('補助率') || lowerQ.includes('いくら')) {
-            return 'この記事の「補助金額」または「補助率」のセクションをご覧ください。補助金の金額や率について詳しく説明されています。';
-        }
-        if (lowerQ.includes('申請') || lowerQ.includes('手続き') || lowerQ.includes('方法')) {
-            return 'この記事の「申請方法」または「申請手順」のセクションに、申請の流れが詳しく記載されています。ステップごとにご確認ください。';
-        }
-        if (lowerQ.includes('書類') || lowerQ.includes('必要') || lowerQ.includes('提出')) {
-            return 'この記事の「必要書類」または「提出書類」のセクションをご確認ください。申請に必要な書類のリストが記載されています。';
-        }
-        
-        return `ご質問ありがとうございます。「${question}」について、この記事内で詳しく説明されています。\n\n記事の目次から該当するセクションをご確認いただくか、ページ内検索（Ctrl+F / Cmd+F）で関連するキーワードを検索してみてください。\n\nさらに詳しい情報が必要な場合は、関連する補助金ページもご参照ください。`;
+    function addMessage(container, text, type) {
+        var msg = document.createElement('div');
+        msg.className = 'gic-ai-msg' + (type === 'user' ? ' user' : '');
+        msg.innerHTML = '<div class="gic-ai-avatar">' + (type === 'user' ? 'You' : 'AI') + '</div><div class="gic-ai-bubble">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
     }
     
-    // HTML escape
     function escapeHtml(text) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
     
-    // AIレスポンスのフォーマット
-    function formatAIResponse(text) {
-        return escapeHtml(text).replace(/\n/g, '<br>');
+    function generateFallback(question) {
+        var q = question.toLowerCase();
+        if (q.indexOf('ポイント') !== -1) return 'この記事のポイントについては、「この記事のポイント」セクションをご確認ください。';
+        if (q.indexOf('補助金') !== -1) return '関連する補助金については、「関連する補助金」セクションをご確認ください。';
+        if (q.indexOf('申請') !== -1) return '補助金の申請方法については、各補助金の詳細ページでご確認いただけます。';
+        return 'ご質問ありがとうございます。記事の内容をご確認いただくか、より具体的な質問をお聞かせください。';
     }
     
-    // モバイルパネル制御
-    function initMobilePanel() {
-        const btn = document.getElementById('mobileTocBtn');
-        const overlay = document.getElementById('mobileTocOverlay');
-        const panel = document.getElementById('mobileTocPanel');
-        const closeBtn = document.getElementById('mobileTocClose');
-        const tabs = document.querySelectorAll('.gus-mobile-nav-tab');
-        
-        if (!btn || !overlay || !panel) return;
-        
-        // パネルを開く
-        btn.addEventListener('click', function() {
-            overlay.classList.add('active');
-            panel.classList.add('active');
-            overlay.setAttribute('aria-hidden', 'false');
-            panel.setAttribute('aria-hidden', 'false');
-            document.body.style.overflow = 'hidden';
-            
-            // フォーカスをパネルに移動
-            panel.focus();
-        });
-        
-        // パネルを閉じる
-        function closePanel() {
-            overlay.classList.remove('active');
-            panel.classList.remove('active');
-            overlay.setAttribute('aria-hidden', 'true');
-            panel.setAttribute('aria-hidden', 'true');
-            document.body.style.overflow = '';
-            
-            // フォーカスをボタンに戻す
-            btn.focus();
-        }
-        
-        if (closeBtn) {
-            closeBtn.addEventListener('click', closePanel);
-        }
-        
-        overlay.addEventListener('click', closePanel);
-        
-        // Escapeキーで閉じる
-        panel.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closePanel();
-            }
-        });
-        
-        // グローバルに公開
-        window.closeMobilePanel = closePanel;
-        
-        // タブ切り替え
-        tabs.forEach(tab => {
-            tab.addEventListener('click', function() {
-                const targetTab = this.getAttribute('data-tab');
-                
-                // タブのアクティブ状態を切り替え
-                tabs.forEach(t => {
-                    t.classList.remove('active');
-                    t.setAttribute('aria-selected', 'false');
-                });
-                this.classList.add('active');
-                this.setAttribute('aria-selected', 'true');
-                
-                // コンテンツを切り替え
-                const contents = panel.querySelectorAll('.gus-mobile-nav-content');
-                contents.forEach(content => {
-                    if ((targetTab === 'ai' && content.id === 'aiContent') ||
-                        (targetTab === 'toc' && content.id === 'tocContent')) {
-                        content.classList.add('active');
-                        content.removeAttribute('hidden');
-                    } else {
-                        content.classList.remove('active');
-                        content.setAttribute('hidden', '');
-                    }
-                });
-            });
+    // デスクトップAI
+    var aiInput = document.getElementById('aiInput');
+    var aiSend = document.getElementById('aiSend');
+    var aiMessages = document.getElementById('aiMessages');
+    
+    if (aiSend && aiInput && aiMessages) {
+        aiSend.addEventListener('click', function() { sendAiMessage(aiInput, aiMessages, aiSend); });
+        aiInput.addEventListener('keydown', function(e) { 
+            if (e.key === 'Enter' && !e.shiftKey) { 
+                e.preventDefault(); 
+                sendAiMessage(aiInput, aiMessages, aiSend); 
+            } 
         });
     }
     
-    // ビューカウント更新
-    function updateViewCount() {
-        const postId = document.querySelector('article[id^="post-"]');
-        if (!postId) return;
-        
-        const id = postId.id.replace('post-', '');
-        
-        // REST API経由で更新
-        const apiUrl = window.wpApiSettings ? window.wpApiSettings.root + 'gi-api/v1/column/' + id + '/view' : '/wp-json/gi-api/v1/column/' + id + '/view';
-        const nonce = window.wpApiSettings && window.wpApiSettings.nonce ? window.wpApiSettings.nonce : '';
-        
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': nonce
-            }
-        }).catch(error => {
-            // エラーは無視（閲覧数更新は必須ではない）
-            console.log('[View Count] Update failed (non-critical):', error);
+    // モバイルAI
+    var mobileAiInput = document.getElementById('mobileAiInput');
+    var mobileAiSend = document.getElementById('mobileAiSend');
+    var mobileAiMessages = document.getElementById('mobileAiMessages');
+    
+    if (mobileAiSend && mobileAiInput && mobileAiMessages) {
+        mobileAiSend.addEventListener('click', function() { sendAiMessage(mobileAiInput, mobileAiMessages, mobileAiSend); });
+        mobileAiInput.addEventListener('keydown', function(e) { 
+            if (e.key === 'Enter' && !e.shiftKey) { 
+                e.preventDefault(); 
+                sendAiMessage(mobileAiInput, mobileAiMessages, mobileAiSend); 
+            } 
         });
     }
     
-    // スムーススクロール
-    function initSmoothScroll() {
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function(e) {
-                const href = this.getAttribute('href');
-                if (href === '#') return;
-                
-                const target = document.querySelector(href);
-                if (target) {
-                    e.preventDefault();
-                    const headerOffset = window.innerWidth < 768 ? 80 : 100;
-                    const elementPosition = target.getBoundingClientRect().top;
-                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-                    
-                    window.scrollTo({
-                        top: offsetPosition,
-                        behavior: 'smooth'
-                    });
-                    
-                    // フォーカスを移動（アクセシビリティ）
-                    target.setAttribute('tabindex', '-1');
-                    target.focus();
-                }
-            });
-        });
-    }
-    
-    // 画像の遅延読み込み
-    function initLazyLoading() {
-        if ('loading' in HTMLImageElement.prototype) {
-            const images = document.querySelectorAll('img[loading="lazy"]');
-            images.forEach(img => {
-                if (img.dataset.src) {
-                    img.src = img.dataset.src;
-                }
-            });
-        } else {
-            // Intersection Observer fallback
-            const imageObserver = new IntersectionObserver((entries, observer) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const img = entry.target;
-                        if (img.dataset.src) {
-                            img.src = img.dataset.src;
-                            img.removeAttribute('data-src');
-                        }
-                        observer.unobserve(img);
-                    }
-                });
-            });
+    // AIチップ
+    document.querySelectorAll('.gic-ai-chip').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+            var q = this.dataset.q;
+            if (!q) return;
             
-            document.querySelectorAll('img[data-src]').forEach(img => {
-                imageObserver.observe(img);
-            });
-        }
-    }
-    
-    // 外部リンクに rel="noopener noreferrer" を追加
-    function secureExternalLinks() {
-        const links = document.querySelectorAll('a[href^="http"]');
-        links.forEach(link => {
-            if (link.hostname !== window.location.hostname) {
-                if (!link.hasAttribute('rel')) {
-                    link.setAttribute('rel', 'noopener noreferrer');
-                } else {
-                    const rel = link.getAttribute('rel');
-                    if (!rel.includes('noopener')) {
-                        link.setAttribute('rel', rel + ' noopener');
-                    }
-                    if (!rel.includes('noreferrer')) {
-                        link.setAttribute('rel', link.getAttribute('rel') + ' noreferrer');
-                    }
-                }
+            var isDesktop = this.closest('.gic-sidebar-section');
+            var input = isDesktop ? aiInput : mobileAiInput;
+            var container = isDesktop ? aiMessages : mobileAiMessages;
+            var btn = isDesktop ? aiSend : mobileAiSend;
+            
+            if (input) {
+                input.value = q;
+                sendAiMessage(input, container, btn);
             }
         });
-    }
-    
-    // ビューポート調整（モバイル）
-    function adjustViewport() {
-        if (window.innerWidth < 768) {
-            let viewportMeta = document.querySelector('meta[name="viewport"]');
-            if (!viewportMeta) {
-                viewportMeta = document.createElement('meta');
-                viewportMeta.name = 'viewport';
-                document.head.appendChild(viewportMeta);
-            }
-            viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
-        }
-    }
-    
-    // 初期化
-    function init() {
-        generateTOC();
-        wrapTables();
-        wrapEmbeds();
-        initMobileAI();
-        initDesktopAI();
-        initMobilePanel();
-        updateViewCount();
-        initSmoothScroll();
-        initLazyLoading();
-        secureExternalLinks();
-        adjustViewport();
-        
-        // デバッグモード時のみ実行
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('debug') === 'true') {
-            setTimeout(detectHorizontalScroll, 1000);
-        }
-        
-        console.log('[✓] Single Column v6.1 - Complete Responsive initialized');
-        console.log('[✓] Features: Full Responsive, Mobile Optimized, Touch Friendly, No Horizontal Scroll');
-    }
-    
-    // DOMContentLoaded
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-    
-    // リサイズ時の調整
-    let resizeTimer;
-    window.addEventListener('resize', function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(function() {
-            adjustViewport();
-        }, 250);
     });
     
-    // ページ表示時のパフォーマンス測定（開発用）
-    window.addEventListener('load', function() {
-        if (window.performance && window.performance.timing) {
-            const perfData = window.performance.timing;
-            const pageLoadTime = perfData.loadEventEnd - perfData.navigationStart;
-            const connectTime = perfData.responseEnd - perfData.requestStart;
-            const renderTime = perfData.domComplete - perfData.domLoading;
-            
-            console.log('[Performance] Page Load Time:', pageLoadTime + 'ms');
-            console.log('[Performance] Connect Time:', connectTime + 'ms');
-            console.log('[Performance] Render Time:', renderTime + 'ms');
-            
-            // Core Web Vitals測定
-            if ('PerformanceObserver' in window) {
-                // Largest Contentful Paint (LCP)
-                try {
-                    const lcpObserver = new PerformanceObserver((entryList) => {
-                        const entries = entryList.getEntries();
-                        const lastEntry = entries[entries.length - 1];
-                        console.log('[Core Web Vitals] LCP:', lastEntry.renderTime || lastEntry.loadTime, 'ms');
-                    });
-                    lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
-                } catch (e) {
-                    console.log('[Performance] LCP measurement not supported');
-                }
-                
-                // First Input Delay (FID)
-                try {
-                    const fidObserver = new PerformanceObserver((entryList) => {
-                        const entries = entryList.getEntries();
-                        entries.forEach(entry => {
-                            console.log('[Core Web Vitals] FID:', entry.processingStart - entry.startTime, 'ms');
-                        });
-                    });
-                    fidObserver.observe({ entryTypes: ['first-input'] });
-                } catch (e) {
-                    console.log('[Performance] FID measurement not supported');
-                }
-                
-                // Cumulative Layout Shift (CLS)
-                try {
-                    let clsScore = 0;
-                    const clsObserver = new PerformanceObserver((entryList) => {
-                        const entries = entryList.getEntries();
-                        entries.forEach(entry => {
-                            if (!entry.hadRecentInput) {
-                                clsScore += entry.value;
-                            }
-                        });
-                        console.log('[Core Web Vitals] CLS:', clsScore.toFixed(4));
-                    });
-                    clsObserver.observe({ entryTypes: ['layout-shift'] });
-                } catch (e) {
-                    console.log('[Performance] CLS measurement not supported');
-                }
-            }
+     // モバイルパネル
+    var mobileAiBtn = document.getElementById('mobileAiBtn');
+    var mobileOverlay = document.getElementById('mobileOverlay');
+    var mobilePanel = document.getElementById('mobilePanel');
+    var panelClose = document.getElementById('panelClose');
+    var panelTabs = document.querySelectorAll('.gic-panel-tab');
+    var panelContents = document.querySelectorAll('.gic-panel-content-tab');
+    
+    function openPanel() {
+        if (mobileOverlay) mobileOverlay.classList.add('active');
+        if (mobilePanel) mobilePanel.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closePanel() {
+        if (mobileOverlay) mobileOverlay.classList.remove('active');
+        if (mobilePanel) mobilePanel.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    if (mobileAiBtn) mobileAiBtn.addEventListener('click', openPanel);
+    if (panelClose) panelClose.addEventListener('click', closePanel);
+    if (mobileOverlay) mobileOverlay.addEventListener('click', closePanel);
+    
+    // Escapeキーで閉じる
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && mobilePanel && mobilePanel.classList.contains('active')) {
+            closePanel();
         }
-        
-        // リソース読み込み状況
-        if (window.performance && window.performance.getEntriesByType) {
-            const resources = window.performance.getEntriesByType('resource');
-            const imageResources = resources.filter(r => r.initiatorType === 'img');
-            const scriptResources = resources.filter(r => r.initiatorType === 'script');
-            const styleResources = resources.filter(r => r.initiatorType === 'link' || r.initiatorType === 'css');
+    });
+    
+    // タブ切り替え
+    panelTabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            var targetTab = this.dataset.tab;
             
-            console.log('[Resources] Images loaded:', imageResources.length);
-            console.log('[Resources] Scripts loaded:', scriptResources.length);
-            console.log('[Resources] Stylesheets loaded:', styleResources.length);
-            
-            // 重いリソースを警告
-            resources.forEach(resource => {
-                if (resource.duration > 1000) {
-                    console.warn('[Performance Warning] Slow resource:', resource.name, 'took', resource.duration.toFixed(2), 'ms');
-                }
-                if (resource.transferSize > 1000000) {
-                    console.warn('[Performance Warning] Large resource:', resource.name, 'size:', (resource.transferSize / 1000000).toFixed(2), 'MB');
-                }
+            // タブのアクティブ状態を切り替え
+            panelTabs.forEach(function(t) { 
+                t.classList.remove('active'); 
             });
-        }
+            this.classList.add('active');
+            
+            // コンテンツを切り替え
+            panelContents.forEach(function(c) { 
+                c.classList.remove('active'); 
+            });
+            
+            var target = document.getElementById('tab' + targetTab.charAt(0).toUpperCase() + targetTab.slice(1));
+            if (target) target.classList.add('active');
+        });
     });
     
-    // ページ離脱前の保存処理
-    window.addEventListener('beforeunload', function(e) {
-        // AI入力内容を保存（オプション）
-        const aiInput = document.getElementById('mobileAiInput');
-        if (aiInput && aiInput.value.trim()) {
-            try {
-                sessionStorage.setItem('gi_ai_draft', aiInput.value);
-            } catch (error) {
-                console.log('[Session] Could not save AI draft');
-            }
-        }
-    });
+    // スワイプでパネルを閉じる
+    var touchStartY = 0;
+    var touchEndY = 0;
     
-    // ページ読み込み時にAI入力を復元
-    window.addEventListener('DOMContentLoaded', function() {
-        try {
-            const savedDraft = sessionStorage.getItem('gi_ai_draft');
-            if (savedDraft) {
-                const aiInput = document.getElementById('mobileAiInput');
-                if (aiInput) {
-                    aiInput.value = savedDraft;
-                    sessionStorage.removeItem('gi_ai_draft');
-                }
-            }
-        } catch (error) {
-            console.log('[Session] Could not restore AI draft');
-        }
-    });
-    
-    // オンライン/オフライン検知
-    window.addEventListener('online', function() {
-        console.log('[Network] Connection restored');
-        // オンラインに戻った時の処理
-        const offlineNotice = document.querySelector('.offline-notice');
-        if (offlineNotice) {
-            offlineNotice.remove();
-        }
-    });
-    
-    window.addEventListener('offline', function() {
-        console.warn('[Network] Connection lost');
-        // オフライン時の通知
-        const notice = document.createElement('div');
-        notice.className = 'offline-notice';
-        notice.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: #dc2626;
-            color: white;
-            padding: 12px 20px;
-            text-align: center;
-            font-size: 14px;
-            font-weight: 600;
-            z-index: 10000;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        `;
-        notice.innerHTML = '<i class="fas fa-wifi" style="margin-right: 8px;"></i>インターネット接続が切断されました';
-        document.body.appendChild(notice);
-    });
-    
-    // スクロール位置の保存と復元
-    let scrollPosition = 0;
-    let scrollTimer;
-    
-    window.addEventListener('scroll', function() {
-        clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(function() {
-            scrollPosition = window.pageYOffset;
-            try {
-                sessionStorage.setItem('gi_scroll_position', scrollPosition);
-            } catch (error) {
-                console.log('[Session] Could not save scroll position');
-            }
-        }, 150);
-    });
-    
-    // ページ読み込み時にスクロール位置を復元
-    window.addEventListener('load', function() {
-        try {
-            const savedPosition = sessionStorage.getItem('gi_scroll_position');
-            if (savedPosition && window.location.hash === '') {
-                setTimeout(function() {
-                    window.scrollTo({
-                        top: parseInt(savedPosition),
-                        behavior: 'instant'
-                    });
-                }, 100);
-            }
-        } catch (error) {
-            console.log('[Session] Could not restore scroll position');
-        }
-    });
-    
-    // タッチジェスチャー検知（スワイプでパネルを閉じる）
-    let touchStartY = 0;
-    let touchEndY = 0;
-    
-    const panel = document.getElementById('mobileTocPanel');
-    if (panel) {
-        panel.addEventListener('touchstart', function(e) {
+    if (mobilePanel) {
+        mobilePanel.addEventListener('touchstart', function(e) {
             touchStartY = e.touches[0].clientY;
         }, { passive: true });
         
-        panel.addEventListener('touchmove', function(e) {
+        mobilePanel.addEventListener('touchmove', function(e) {
             touchEndY = e.touches[0].clientY;
-            const diff = touchEndY - touchStartY;
+            var diff = touchEndY - touchStartY;
             
-            // 下方向にスワイプした場合、パネルを追従させる
-            if (diff > 0 && window.scrollY === 0) {
-                const content = panel.querySelector('.gus-mobile-nav-content.active');
+            // 下方向にスワイプした場合
+            if (diff > 0) {
+                var content = mobilePanel.querySelector('.gic-panel-content');
                 if (content && content.scrollTop === 0) {
-                    panel.style.transform = `translateY(${Math.min(diff, 200)}px)`;
+                    mobilePanel.style.transform = 'translateY(' + Math.min(diff, 200) + 'px)';
                 }
             }
         }, { passive: true });
         
-        panel.addEventListener('touchend', function(e) {
-            const diff = touchEndY - touchStartY;
+        mobilePanel.addEventListener('touchend', function() {
+            var diff = touchEndY - touchStartY;
             
             // 100px以上下にスワイプしたらパネルを閉じる
             if (diff > 100) {
-                const content = panel.querySelector('.gus-mobile-nav-content.active');
+                var content = mobilePanel.querySelector('.gic-panel-content');
                 if (content && content.scrollTop === 0) {
-                    if (typeof window.closeMobilePanel === 'function') {
-                        window.closeMobilePanel();
-                    }
+                    closePanel();
                 }
             }
             
             // 位置をリセット
-            panel.style.transform = '';
+            mobilePanel.style.transform = '';
             touchStartY = 0;
             touchEndY = 0;
         }, { passive: true });
     }
     
-    // フォーカストラップ（モーダル内でのキーボードナビゲーション）
-    function trapFocus(element) {
-        const focusableElements = element.querySelectorAll(
-            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        
-        if (focusableElements.length === 0) return;
-        
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
-        
-        element.addEventListener('keydown', function(e) {
-            if (e.key !== 'Tab') return;
+    // スムーススクロール
+    document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
+        anchor.addEventListener('click', function(e) {
+            var href = this.getAttribute('href');
+            if (href === '#') return;
             
-            if (e.shiftKey) {
-                if (document.activeElement === firstElement) {
-                    e.preventDefault();
-                    lastElement.focus();
+            var target = document.querySelector(href);
+            if (target) {
+                e.preventDefault();
+                var top = target.getBoundingClientRect().top + window.pageYOffset - 80;
+                window.scrollTo({ top: top, behavior: 'smooth' });
+                
+                // モバイルパネルを閉じる
+                if (mobilePanel && mobilePanel.classList.contains('active')) {
+                    closePanel();
                 }
-            } else {
-                if (document.activeElement === lastElement) {
-                    e.preventDefault();
-                    firstElement.focus();
+            }
+        });
+    });
+    
+    // トースト通知
+    function showToast(msg) {
+        var t = document.getElementById('gicToast');
+        if (!t) return;
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(function() { t.classList.remove('show'); }, 3000);
+    }
+    window.showToast = showToast;
+    
+    // 外部リンクにrel属性追加
+    document.querySelectorAll('.gic-content a[href^="http"]').forEach(function(link) {
+        if (link.hostname !== window.location.hostname) {
+            link.setAttribute('target', '_blank');
+            var rel = link.getAttribute('rel') || '';
+            if (rel.indexOf('noopener') === -1) rel += ' noopener';
+            if (rel.indexOf('noreferrer') === -1) rel += ' noreferrer';
+            link.setAttribute('rel', rel.trim());
+        }
+    });
+    
+    // テーブルのレスポンシブ対応
+    document.querySelectorAll('.gic-content table').forEach(function(table) {
+        if (!table.parentElement.classList.contains('table-wrapper')) {
+            var wrapper = document.createElement('div');
+            wrapper.style.overflowX = 'auto';
+            wrapper.style.webkitOverflowScrolling = 'touch';
+            wrapper.style.marginBottom = '20px';
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+        }
+    });
+    
+    // 画像の遅延読み込み
+    if ('IntersectionObserver' in window) {
+        var imageObserver = new IntersectionObserver(function(entries, observer) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    var img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                    }
+                    observer.unobserve(img);
                 }
+            });
+        }, { rootMargin: '50px 0px' });
+        
+        document.querySelectorAll('img[data-src]').forEach(function(img) {
+            imageObserver.observe(img);
+        });
+    }
+    
+    // 読了率トラッキング
+    var readingMilestones = [25, 50, 75, 100];
+    var reachedMilestones = [];
+    
+    function trackReading() {
+        var windowHeight = window.innerHeight;
+        var documentHeight = document.documentElement.scrollHeight - windowHeight;
+        if (documentHeight <= 0) return;
+        
+        var scrolled = window.scrollY;
+        var progressPercent = Math.round((scrolled / documentHeight) * 100);
+        
+        readingMilestones.forEach(function(milestone) {
+            if (progressPercent >= milestone && reachedMilestones.indexOf(milestone) === -1) {
+                reachedMilestones.push(milestone);
+                
+                // Google Analytics 4対応
+                if (typeof gtag === 'function') {
+                    gtag('event', 'reading_progress', {
+                        event_category: 'engagement',
+                        event_label: milestone + '%',
+                        page_type: 'single_column',
+                        post_id: CONFIG.postId
+                    });
+                }
+                
+                console.log('[Reading Progress] ' + milestone + '% reached');
             }
         });
     }
     
-    // モバイルパネルにフォーカストラップを適用
-    if (panel) {
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                if (mutation.attributeName === 'class') {
-                    if (panel.classList.contains('active')) {
-                        trapFocus(panel);
-                    }
+    window.addEventListener('scroll', trackReading, { passive: true });
+    
+    // 滞在時間トラッキング
+    var startTime = Date.now();
+    var timeIntervals = [30, 60, 120, 300]; // 秒
+    var reportedIntervals = [];
+    
+    setInterval(function() {
+        var elapsed = Math.floor((Date.now() - startTime) / 1000);
+        
+        timeIntervals.forEach(function(interval) {
+            if (elapsed >= interval && reportedIntervals.indexOf(interval) === -1) {
+                reportedIntervals.push(interval);
+                
+                if (typeof gtag === 'function') {
+                    gtag('event', 'time_on_page', {
+                        event_category: 'engagement',
+                        event_label: interval + 's',
+                        page_type: 'single_column',
+                        post_id: CONFIG.postId
+                    });
                 }
-            });
+                
+                console.log('[Time on Page] ' + interval + 's reached');
+            }
         });
-        
-        observer.observe(panel, { attributes: true });
-    }
+    }, 5000);
     
-    // エラーハンドリング
-    window.addEventListener('error', function(e) {
-        console.error('[Global Error]', e.message, 'at', e.filename, ':', e.lineno);
-    });
-    
-    window.addEventListener('unhandledrejection', function(e) {
-        console.error('[Unhandled Promise Rejection]', e.reason);
-    });
-    
-    // デバッグモード（URLパラメータで有効化）
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('debug') === 'true') {
-        console.log('[Debug Mode] Enabled');
-        console.log('[Debug] Viewport:', window.innerWidth, 'x', window.innerHeight);
-        console.log('[Debug] User Agent:', navigator.userAgent);
-        console.log('[Debug] Touch Support:', 'ontouchstart' in window);
-        console.log('[Debug] Connection:', navigator.connection ? navigator.connection.effectiveType : 'unknown');
-        
-        // デバッグ用のスタイル追加
-        const debugStyle = document.createElement('style');
-        debugStyle.textContent = `
-            * { outline: 1px solid rgba(255, 0, 0, 0.2) !important; }
-            *:hover { outline: 2px solid rgba(255, 0, 0, 0.5) !important; }
-        `;
-        document.head.appendChild(debugStyle);
-    }
-    
-    // アナリティクス用のイベント送信（Google Analytics 4対応）
-    function sendAnalyticsEvent(eventName, eventParams) {
-        if (typeof gtag === 'function') {
-            gtag('event', eventName, eventParams);
-            console.log('[Analytics] Event sent:', eventName, eventParams);
-        } else if (typeof ga === 'function') {
-            // Universal Analytics fallback
-            ga('send', 'event', eventParams.event_category, eventName, eventParams.event_label);
-            console.log('[Analytics] Event sent (UA):', eventName);
-        } else {
-            console.log('[Analytics] Not available');
-        }
-    }
-    
-    // 重要なユーザーアクション追跡
-    document.addEventListener('click', function(e) {
-        const target = e.target.closest('a, button');
-        if (!target) return;
-        
-        // CTAボタンのクリック追跡
-        if (target.classList.contains('gus-cta-btn')) {
-            sendAnalyticsEvent('cta_click', {
-                event_category: 'engagement',
-                event_label: target.textContent.trim(),
-                page_type: 'single_column'
-            });
+    // ページ離脱時の処理
+    window.addEventListener('beforeunload', function() {
+        var elapsed = Math.floor((Date.now() - startTime) / 1000);
+        var scrollDepth = 0;
+        var documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+        if (documentHeight > 0) {
+            scrollDepth = Math.round((window.scrollY / documentHeight) * 100);
         }
         
-        // 補助金カードのクリック追跡
-        if (target.classList.contains('mobile-grant-link') || target.classList.contains('related-grant-link')) {
-            sendAnalyticsEvent('grant_click', {
-                event_category: 'navigation',
-                event_label: target.querySelector('.mobile-grant-title, .related-grant-title')?.textContent.trim(),
-                page_type: 'single_column'
-            });
-        }
-        
-        // シェアボタンのクリック追跡
-        if (target.classList.contains('share-btn')) {
-            const platform = target.classList.contains('share-twitter') ? 'twitter' :
-                           target.classList.contains('share-facebook') ? 'facebook' :
-                           target.classList.contains('share-line') ? 'line' : 'unknown';
-            sendAnalyticsEvent('share', {
-                event_category: 'social',
-                event_label: platform,
-                page_type: 'single_column'
-            });
+        // Beacon APIで送信
+        if (navigator.sendBeacon) {
+            var data = new FormData();
+            data.append('action', 'gic_track_exit');
+            data.append('post_id', CONFIG.postId);
+            data.append('time_spent', elapsed);
+            data.append('scroll_depth', scrollDepth);
+            
+            navigator.sendBeacon(CONFIG.ajaxUrl, data);
         }
     });
     
-    // 読了率の追跡
-    let readingProgress = 0;
-    let milestones = [25, 50, 75, 100];
-    
-    window.addEventListener('scroll', function() {
-        const windowHeight = window.innerHeight;
-        const documentHeight = document.documentElement.scrollHeight - windowHeight;
-        const scrolled = window.scrollY;
-        const progress = Math.round((scrolled / documentHeight) * 100);
+    // コードブロックのコピー機能
+    document.querySelectorAll('.gic-content pre').forEach(function(pre) {
+        var copyBtn = document.createElement('button');
+        copyBtn.textContent = 'コピー';
+        copyBtn.style.cssText = 'position: absolute; top: 8px; right: 8px; padding: 4px 10px; font-size: 12px; background: #555; color: #fff; border: none; cursor: pointer; border-radius: 3px;';
         
-        // マイルストーン到達時にイベント送信
-        milestones.forEach(function(milestone) {
-            if (progress >= milestone && readingProgress < milestone) {
-                sendAnalyticsEvent('reading_progress', {
-                    event_category: 'engagement',
-                    event_label: milestone + '%',
-                    page_type: 'single_column'
+        pre.style.position = 'relative';
+        pre.appendChild(copyBtn);
+        
+        copyBtn.addEventListener('click', function() {
+            var code = pre.querySelector('code') || pre;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code.textContent).then(function() {
+                    copyBtn.textContent = 'コピー完了!';
+                    setTimeout(function() { copyBtn.textContent = 'コピー'; }, 2000);
                 });
             }
         });
-        
-        readingProgress = progress;
     });
     
-    // AI使用状況の追跡
-    const aiSendBtn = document.getElementById('mobileAiSend');
-    if (aiSendBtn) {
-        aiSendBtn.addEventListener('click', function() {
-            sendAnalyticsEvent('ai_question', {
-                event_category: 'ai_interaction',
-                event_label: 'mobile_panel',
-                page_type: 'single_column'
-            });
+    // シェアボタンのクリックトラッキング
+    document.querySelectorAll('.gic-share-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var platform = 'unknown';
+            if (this.href.indexOf('twitter') !== -1 || this.href.indexOf('x.com') !== -1) platform = 'twitter';
+            else if (this.href.indexOf('facebook') !== -1) platform = 'facebook';
+            else if (this.href.indexOf('line') !== -1) platform = 'line';
+            
+            if (typeof gtag === 'function') {
+                gtag('event', 'share', {
+                    event_category: 'social',
+                    event_label: platform,
+                    page_type: 'single_column',
+                    post_id: CONFIG.postId
+                });
+            }
+            
+            console.log('[Share] ' + platform);
+        });
+    });
+    
+    // FAQ開閉トラッキング
+    document.querySelectorAll('.gic-faq-item').forEach(function(item, index) {
+        item.addEventListener('toggle', function() {
+            if (this.open) {
+                if (typeof gtag === 'function') {
+                    gtag('event', 'faq_open', {
+                        event_category: 'engagement',
+                        event_label: 'FAQ #' + (index + 1),
+                        page_type: 'single_column',
+                        post_id: CONFIG.postId
+                    });
+                }
+                
+                console.log('[FAQ] Opened #' + (index + 1));
+            }
+        });
+    });
+    
+    // 関連コンテンツのクリックトラッキング
+    document.querySelectorAll('.gic-grant-card, .gic-related-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+            var title = this.querySelector('.gic-grant-title, .gic-related-card-title');
+            var titleText = title ? title.textContent : 'Unknown';
+            var type = this.classList.contains('gic-grant-card') ? 'grant' : 'column';
+            
+            if (typeof gtag === 'function') {
+                gtag('event', 'related_click', {
+                    event_category: 'navigation',
+                    event_label: titleText,
+                    content_type: type,
+                    page_type: 'single_column',
+                    post_id: CONFIG.postId
+                });
+            }
+            
+            console.log('[Related Click] ' + type + ': ' + titleText);
+        });
+    });
+    
+    // オンライン/オフライン検知
+    window.addEventListener('online', function() {
+        console.log('[Network] Connection restored');
+        var notice = document.querySelector('.gic-offline-notice');
+        if (notice) notice.remove();
+        showToast('インターネット接続が復旧しました');
+    });
+    
+    window.addEventListener('offline', function() {
+        console.warn('[Network] Connection lost');
+        var notice = document.createElement('div');
+        notice.className = 'gic-offline-notice';
+        notice.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #DC2626; color: white; padding: 12px 20px; text-align: center; font-size: 14px; font-weight: 600; z-index: 10000;';
+        notice.innerHTML = '⚠️ インターネット接続が切断されました';
+        document.body.appendChild(notice);
+    });
+    
+    // 印刷対応
+    window.addEventListener('beforeprint', function() {
+        // 全てのdetailsを開く
+        document.querySelectorAll('details').forEach(function(details) {
+            details.setAttribute('open', '');
+        });
+    });
+    
+    // パフォーマンス計測
+    if (window.performance && window.performance.timing) {
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                var timing = window.performance.timing;
+                var pageLoadTime = timing.loadEventEnd - timing.navigationStart;
+                var domReadyTime = timing.domContentLoadedEventEnd - timing.navigationStart;
+                
+                console.log('[Performance] Page Load: ' + pageLoadTime + 'ms');
+                console.log('[Performance] DOM Ready: ' + domReadyTime + 'ms');
+            }, 0);
         });
     }
     
-    // 最終ログ出力
-    console.log('[✓] Single Column v6.1 - All systems operational');
-    console.log('[✓] Responsive: Mobile, Tablet, Desktop');
-    console.log('[✓] Features: TOC, AI Chat, Analytics, Performance Monitoring');
-    console.log('[✓] Accessibility: ARIA labels, Keyboard navigation, Screen reader support');
-    console.log('[✓] SEO: Structured data, OGP, Canonical URL');
-    console.log('[✓] Mobile: No horizontal scroll, Touch optimized, Swipe gestures');
-    
-})();
+    // 初期化完了ログ
+    console.log('[✓] Single Column v7.1 initialized');
+    console.log('[✓] Post ID: ' + CONFIG.postId);
+    console.log('[✓] Features: AI Chat, TOC, Progress Bar, Analytics, Accessibility');
+});
 </script>
+
+<?php endwhile; ?>
+
+<?php wp_footer(); ?>
+</body>
+</html>

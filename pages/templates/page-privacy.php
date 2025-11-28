@@ -25,17 +25,7 @@ $privacy_schema = array(
 );
 ?>
 
-<!-- SEO メタタグ -->
-<title>プライバシーポリシー | 補助金インサイト - AI活用型補助金検索ポータル</title>
-<meta name="description" content="補助金インサイトのプライバシーポリシー。個人情報の取り扱い、収集する情報、利用目的、第三者提供、セキュリティ対策などについて定めています。">
-<meta name="keywords" content="プライバシーポリシー,個人情報保護,情報セキュリティ,補助金インサイト,個人情報の取り扱い">
-<link rel="canonical" href="https://joseikin-insight.com/privacy/">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="プライバシーポリシー | 補助金インサイト">
-<meta property="og:description" content="補助金インサイトのプライバシーポリシー。個人情報の取り扱いについて定めています。">
-<meta property="og:url" content="https://joseikin-insight.com/privacy/">
+<!-- SEO タグ削除 (2025-11-26): header.phpで一元管理 -->
 
 <!-- 構造化データ -->
 <script type="application/ld+json">

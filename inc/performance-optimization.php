@@ -49,10 +49,14 @@ class GI_Performance_Optimizer {
         add_action('init', [$this, 'disable_emojis']);
         add_action('wp_head', [$this, 'remove_wp_version'], 1);
         
-        // HTML圧縮
+        // HTML圧縮 - DISABLED FOR PERFORMANCE
+        // PHPによるHTML圧縮はCPU負荷が高く、レンダリング開始を遅らせる原因になります。
+        // Nginx/Apache、Cloudflare、または Autoptimize プラグインでの圧縮を推奨します。
+        /*
         if (!is_admin()) {
             add_action('template_redirect', [$this, 'start_html_minification'], 0);
         }
+        */
         
         // サードパーティスクリプト最適化
         add_action('wp_footer', [$this, 'lazy_load_third_party_scripts'], 1);
@@ -315,11 +319,27 @@ class GI_Performance_Optimizer {
     
     /**
      * クリティカルCSSをインライン化
+     * 
+     * ⚠️ 警告: クリティカルCSSのメンテナンス
+     * 
+     * このインラインCSSはテーマのメインCSS（style.css）から独立しています。
+     * style.css を変更しても、ここは自動更新されません。
+     * 
+     * 【リスク】
+     * - デザインの不整合（メインCSSとクリティカルCSSの乖離）
+     * - CLSの発生（Cumulative Layout Shift）
+     * - Google Search Consoleでの警告
+     * 
+     * 【推奨対応】
+     * 1. style.css と内容が一致しているか定期的に確認
+     * 2. または、この機能を無効化してstyle.cssのみに統一
+     * 3. 自動生成ツール（Critical、Penthouse など）の使用を検討
      */
     public function inline_critical_css() {
         ?>
         <style id="critical-css">
-        /* クリティカルCSS - Above the Fold */
+        /* クリティカルCSS - Above the Fold 
+           ⚠️ 注意: このCSSは手動メンテナンスが必要です */
         :root {
             --color-black: #000;
             --color-white: #fff;
@@ -765,6 +785,324 @@ class GI_Performance_Optimizer {
         elseif (preg_match('/\.(woff2|woff|ttf|eot)$/i', $request_uri)) {
             header('Cache-Control: public, max-age=31536000, immutable');
             header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
+        }
+    }
+}
+
+/**
+ * ========================================
+ * SEO最適化機能
+ * ========================================
+ * 
+ * Googleからのマイナス評価を防ぎ、加点要素を最大化するための
+ * SEO最適化機能を performance-optimization.php に統合
+ * 
+ * @since 11.0.2
+ */
+
+/**
+ * タイトルの長さを最適化（60文字以内推奨）
+ * Googleの検索結果で切り詰められることを防ぐ
+ * 
+ * @param string $title タイトル文字列
+ * @param int $max_length 最大文字数（デフォルト: 57）
+ * @return string 最適化されたタイトル
+ */
+function gi_optimize_title_length($title, $max_length = 57) {
+    if (mb_strlen($title, 'UTF-8') <= $max_length) {
+        return $title;
+    }
+    return mb_substr($title, 0, $max_length, 'UTF-8') . '...';
+}
+
+/**
+ * XMLサイトマップの最適化
+ * 募集中の補助金を優先的に表示
+ */
+add_filter('wpseo_sitemap_entry', 'gi_enhance_sitemap_entry', 10, 3);
+function gi_enhance_sitemap_entry($url, $type, $post) {
+    // 助成金投稿タイプの場合
+    if ($type === 'post' && isset($post->post_type) && $post->post_type === 'grant') {
+        // 募集中のステータスを確認
+        $status = get_field('application_status', $post->ID);
+        
+        // 募集中の場合は優先度を高く設定
+        if ($status === 'recruiting' || $status === 'open') {
+            $url['pri'] = 0.9; // 高優先度
+        } else {
+            $url['pri'] = 0.5; // 通常優先度
+        }
+        
+        // 更新頻度を設定
+        $url['mod'] = get_the_modified_date('c', $post);
+        $url['chf'] = 'weekly';
+    }
+    
+    return $url;
+}
+
+/**
+ * サイトマップクエリの最適化
+ * 公開済み投稿のみを含め、募集中を優先
+ */
+add_filter('wpseo_sitemap_posts_where', 'gi_enhance_sitemap_posts', 10, 2);
+function gi_enhance_sitemap_posts($where, $post_type) {
+    if ($post_type === 'grant') {
+        global $wpdb;
+        
+        // 公開済みのみ
+        $where .= " AND {$wpdb->posts}.post_status = 'publish'";
+    }
+    
+    return $where;
+}
+
+/**
+ * robots.txt の最適化
+ * 検索エンジンのクロール効率を向上
+ */
+add_filter('robots_txt', 'gi_optimize_robots_txt', 10, 2);
+function gi_optimize_robots_txt($output, $public) {
+    if (!$public) {
+        return $output;
+    }
+    
+    // 重複コンテンツを防ぐためのディレクトリをブロック
+    $disallow_paths = array(
+        '/wp-admin/',
+        '/wp-includes/',
+        '/wp-json/',
+        '/feed/',
+        '/trackback/',
+        '/comments/',
+        '/*?s=',          // 検索結果ページ
+        '/*?p=',          // パーマリンクのIDパラメータ
+        '/*?replytocom=', // コメント返信
+    );
+    
+    $output = "User-agent: *\n";
+    
+    foreach ($disallow_paths as $path) {
+        $output .= "Disallow: {$path}\n";
+    }
+    
+    // サイトマップの場所を追加
+    $sitemap_url = home_url('/sitemap_index.xml');
+    $output .= "\nSitemap: {$sitemap_url}\n";
+    
+    // クロール遅延を設定（サーバー負荷軽減）
+    $output .= "Crawl-delay: 1\n";
+    
+    return $output;
+}
+
+/**
+ * パンくずリスト用構造化データヘルパー
+ * 既存テンプレートで使用可能な共通関数
+ * 
+ * @param array $items パンくずリストアイテム配列 [['name' => '名前', 'url' => 'URL'], ...]
+ * @return string JSON-LD形式の構造化データ
+ */
+function gi_generate_breadcrumb_schema($items) {
+    if (empty($items) || !is_array($items)) {
+        return '';
+    }
+    
+    $list_items = array();
+    $position = 1;
+    
+    foreach ($items as $item) {
+        if (empty($item['name'])) {
+            continue;
+        }
+        
+        $list_item = array(
+            '@type' => 'ListItem',
+            'position' => $position,
+            'name' => esc_html($item['name'])
+        );
+        
+        // 最後のアイテム以外はURLを追加
+        if (isset($item['url']) && !empty($item['url'])) {
+            $list_item['item'] = esc_url($item['url']);
+        }
+        
+        $list_items[] = $list_item;
+        $position++;
+    }
+    
+    if (empty($list_items)) {
+        return '';
+    }
+    
+    $schema = array(
+        '@context' => 'https://schema.org',
+        '@type' => 'BreadcrumbList',
+        'itemListElement' => $list_items
+    );
+    
+    return '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>';
+}
+
+/**
+ * E-E-A-T強化用の著者情報構造化データヘルパー
+ * 既存テンプレートで使用可能な共通関数
+ * 
+ * @param array $author 著者情報配列
+ * @return string JSON-LD形式の構造化データ
+ */
+function gi_generate_author_schema($author = array()) {
+    $defaults = array(
+        'name' => '助成金インサイト編集部',
+        'type' => 'Organization',
+        'url' => home_url('/about/'),
+        'description' => '中小企業診断士・社会保険労務士監修のもと、補助金・助成金情報を提供',
+        'logo' => 'https://joseikin-insight.com/wp-content/uploads/2025/05/cropped-logo3.webp'
+    );
+    
+    $author = wp_parse_args($author, $defaults);
+    
+    $schema = array(
+        '@context' => 'https://schema.org',
+        '@type' => $author['type'],
+        'name' => $author['name'],
+        'url' => $author['url'],
+        'description' => $author['description']
+    );
+    
+    if ($author['type'] === 'Organization' && !empty($author['logo'])) {
+        $schema['logo'] = $author['logo'];
+    }
+    
+    return '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>';
+}
+
+/**
+ * 内部リンク最適化用のヘルパー関数
+ * 関連コンテンツへのリンクを生成
+ * 
+ * @param int $post_id 投稿ID
+ * @param int $count 取得件数
+ * @param string $relation_type 関連タイプ ('category', 'tag', 'recent')
+ * @return array 関連投稿の配列
+ */
+function gi_get_related_content($post_id, $count = 5, $relation_type = 'category') {
+    $args = array(
+        'post_type' => get_post_type($post_id),
+        'posts_per_page' => $count,
+        'post__not_in' => array($post_id),
+        'post_status' => 'publish',
+        'no_found_rows' => true,
+        'update_post_term_cache' => false,
+        'update_post_meta_cache' => false,
+    );
+    
+    $post_type = get_post_type($post_id);
+    
+    switch ($relation_type) {
+        case 'category':
+            if ($post_type === 'grant') {
+                $categories = wp_get_post_terms($post_id, 'grant_category', array('fields' => 'ids'));
+                if (!empty($categories) && !is_wp_error($categories)) {
+                    $args['tax_query'] = array(
+                        array(
+                            'taxonomy' => 'grant_category',
+                            'field' => 'term_id',
+                            'terms' => $categories,
+                        ),
+                    );
+                }
+            } elseif ($post_type === 'column') {
+                $categories = wp_get_post_terms($post_id, 'column_category', array('fields' => 'ids'));
+                if (!empty($categories) && !is_wp_error($categories)) {
+                    $args['tax_query'] = array(
+                        array(
+                            'taxonomy' => 'column_category',
+                            'field' => 'term_id',
+                            'terms' => $categories,
+                        ),
+                    );
+                }
+            }
+            break;
+            
+        case 'recent':
+            $args['orderby'] = 'date';
+            $args['order'] = 'DESC';
+            break;
+            
+        case 'popular':
+            // 閲覧数が多い投稿を取得（ACFフィールド使用）
+            $args['meta_key'] = 'view_count';
+            $args['orderby'] = 'meta_value_num';
+            $args['order'] = 'DESC';
+            break;
+    }
+    
+    $query = new WP_Query($args);
+    
+    return $query->posts;
+}
+
+/**
+ * ページ速度改善: DNS Prefetch追加
+ */
+add_action('wp_head', 'gi_add_dns_prefetch', 1);
+function gi_add_dns_prefetch() {
+    $domains = array(
+        '//fonts.googleapis.com',
+        '//fonts.gstatic.com',
+        '//www.google-analytics.com',
+        '//www.googletagmanager.com',
+        '//cdnjs.cloudflare.com',
+    );
+    
+    foreach ($domains as $domain) {
+        echo '<link rel="dns-prefetch" href="' . esc_url($domain) . '">' . "\n";
+    }
+}
+
+/**
+ * preconnectリソースヒントの追加
+ */
+add_action('wp_head', 'gi_add_preconnect', 1);
+function gi_add_preconnect() {
+    // Google Fontsへのpreconnect（header.phpで既に追加済みの場合はスキップ）
+    // これはperformance-optimization.phpからも呼び出せるようにするためのフォールバック
+}
+
+/**
+ * 低品質ページのnoindex設定
+ * 薄いコンテンツページを検索結果から除外
+ */
+add_action('wp_head', 'gi_noindex_low_quality_pages', 5);
+function gi_noindex_low_quality_pages() {
+    // 既にheader.phpでrobotsメタタグが出力されている場合はスキップ
+    // この関数は追加の条件が必要な場合のみ使用
+    
+    // アーカイブページの2ページ目以降
+    if (is_paged() && (is_archive() || is_home())) {
+        // header.phpで既に処理されている可能性があるため、
+        // 重複出力を避けるために条件を限定
+        return;
+    }
+    
+    // 著者アーカイブページ（著者情報が薄い場合）
+    if (is_author()) {
+        $author_id = get_queried_object_id();
+        $post_count = count_user_posts($author_id, 'grant');
+        
+        // 投稿数が少ない著者ページはnoindex
+        if ($post_count < 3) {
+            echo '<meta name="robots" content="noindex, follow">' . "\n";
+        }
+    }
+    
+    // 空のタクソノミーアーカイブ
+    if (is_tax() || is_category() || is_tag()) {
+        $term = get_queried_object();
+        if ($term && $term->count === 0) {
+            echo '<meta name="robots" content="noindex, follow">' . "\n";
         }
     }
 }

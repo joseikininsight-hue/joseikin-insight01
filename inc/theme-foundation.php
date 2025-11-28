@@ -331,7 +331,8 @@ function gi_register_post_types() {
         'supports' => array('title', 'editor', 'thumbnail', 'excerpt', 'custom-fields', 'revisions'),
         'show_in_rest' => true,
         'rest_base' => 'grants',
-        'rest_controller_class' => 'WP_REST_Posts_Controller'
+        'rest_controller_class' => 'WP_REST_Posts_Controller',
+        'can_export' => true // インポート/エクスポート機能を有効化
     ));
 }
 add_action('init', 'gi_register_post_types');
