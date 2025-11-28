@@ -415,6 +415,9 @@ function gi_fix_grant_hierarchical($args, $post_type) {
         $args['show_in_rest'] = true;
         $args['rest_base'] = 'grants';
         
+        // インポート/エクスポート機能を有効化（重要！）
+        $args['can_export'] = true;
+        
         // クエリパフォーマンス向上のため、不要なサポート機能を削除
         if (isset($args['supports'])) {
             // リビジョンを削除する場合（推奨しない場合はコメントアウト）
