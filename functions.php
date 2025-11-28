@@ -825,6 +825,7 @@ if (file_exists(get_template_directory() . '/inc/performance-diagnostic.php')) {
 }
 
 // パフォーマンス最適化パッチ（自動的に適用される最適化）
+// 修正済み: 管理画面での投稿表示に影響しないように改善
 if (file_exists(get_template_directory() . '/inc/performance-optimization-patch.php')) {
     require_once get_template_directory() . '/inc/performance-optimization-patch.php';
 }

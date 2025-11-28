@@ -80,10 +80,17 @@ class GI_Performance_Optimization_Patch {
     
     /**
      * 3. Grant クエリの最適化
+     * 
+     * 注意: メインクエリのみを最適化し、管理画面は除外
      */
     public function optimize_grant_queries($query) {
-        // 管理画面またはメインクエリでない場合はスキップ
-        if (is_admin() || !$query->is_main_query()) {
+        // 管理画面では最適化しない（投稿一覧が表示されなくなる問題を防ぐ）
+        if (is_admin()) {
+            return;
+        }
+        
+        // メインクエリでない場合はスキップ
+        if (!$query->is_main_query()) {
             return;
         }
         
@@ -98,6 +105,7 @@ class GI_Performance_Optimization_Patch {
         $query->set('update_post_term_cache', true); // タクソノミーは必要
         
         // ORDER BY の最適化（インデックスを活用）
+        // 既存の orderby がない場合のみ設定
         if (!$query->get('orderby')) {
             $query->set('orderby', 'date');
             $query->set('order', 'DESC');
@@ -175,18 +183,28 @@ class GI_Performance_Optimization_Patch {
     public function optimize_posts_clauses($clauses, $query) {
         global $wpdb;
         
+        // 管理画面では最適化をスキップ（投稿一覧が表示されなくなる問題を防ぐ）
+        if (is_admin()) {
+            return $clauses;
+        }
+        
         // Grant クエリのみ対象
         if ($query->get('post_type') !== 'grant' && !in_array('grant', (array)$query->get('post_type'))) {
             return $clauses;
         }
         
+        // メインクエリでない場合はスキップ
+        if (!$query->is_main_query()) {
+            return $clauses;
+        }
+        
         // DISTINCT を削除（不要な場合が多い）
-        if (strpos($clauses['distinct'], 'DISTINCT') !== false && !$query->get('meta_query')) {
+        if (isset($clauses['distinct']) && strpos($clauses['distinct'], 'DISTINCT') !== false && !$query->get('meta_query')) {
             $clauses['distinct'] = '';
         }
         
-        // ORDER BY の最適化
-        if (empty($query->get('meta_key')) && empty($query->get('meta_query'))) {
+        // ORDER BY の最適化（既存の orderby がある場合は変更しない）
+        if (empty($query->get('meta_key')) && empty($query->get('meta_query')) && empty($query->get('orderby'))) {
             // メタデータでソートしない場合はインデックスを活用
             $clauses['orderby'] = "ORDER BY {$wpdb->posts}.post_date DESC";
         }
