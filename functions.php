@@ -8,8 +8,14 @@
  * - Eliminated folder over-organization
  * 
  * @package Grant_Insight_Perfect
- * @version 10.0.0 (Yahoo!-Style Tabbed Grant Browsing)
+ * @version 11.0.2 (SEO Duplicate Meta Fix)
  * 
+ * Changelog v11.0.2:
+ * - Disabled gi_add_seo_meta_tags to prevent duplicate meta tags (header.php handles this)
+ * - Disabled gi_inject_inline_cta to prevent content flow interruption
+ * - Kept remove_duplicate_sections_from_content active for duplicate section removal
+ * - Cleaned up commented code and improved documentation
+ *
  * Changelog v10.0.0:
  * - Implemented Yahoo! JAPAN-style tabbed grant browsing system
  * - Added 4 tabs: 締切間近(30日以内), おすすめ, 新着, あなたにおすすめ
@@ -33,45 +39,35 @@ if (!defined('ABSPATH')) {
 
 // テーマバージョン定数
 if (!defined('GI_THEME_VERSION')) {
-    define('GI_THEME_VERSION', '11.0.1'); // REST API endpoint fix for grant post type
+    define('GI_THEME_VERSION', '11.0.2');
 }
 if (!defined('GI_THEME_PREFIX')) {
     define('GI_THEME_PREFIX', 'gi_');
 }
 
-// EMERGENCY: File editing temporarily disabled to prevent memory exhaustion
-// All theme editor functionality removed until memory issue is resolved
-
 // 🔧 MEMORY OPTIMIZATION
-// Increase memory limit for admin area only
 if (is_admin() && !wp_doing_ajax()) {
     @ini_set('memory_limit', '256M');
     
-    // Limit WordPress features that consume memory
     add_action('init', function() {
-        // Disable post revisions temporarily
         if (!defined('WP_POST_REVISIONS')) {
             define('WP_POST_REVISIONS', 3);
         }
         
-        // Reduce autosave interval
         if (!defined('AUTOSAVE_INTERVAL')) {
-            define('AUTOSAVE_INTERVAL', 300); // 5 minutes
+            define('AUTOSAVE_INTERVAL', 300);
         }
     }, 1);
 }
 
 /**
  * 🔧 JavaScript Error Handling & Optimization
- * Fixes for WordPress admin JavaScript errors
  */
 
-// Dequeue problematic Jetpack scripts to prevent duplicate store registration
+// Dequeue problematic Jetpack scripts
 add_action('admin_enqueue_scripts', 'gi_fix_jetpack_conflicts', 100);
 function gi_fix_jetpack_conflicts() {
-    // Check if Jetpack is active
     if (class_exists('Jetpack')) {
-        // Deregister duplicate Jetpack stores
         wp_deregister_script('jetpack-ai-logo-generator');
         wp_deregister_script('jetpack-modules-store');
     }
@@ -80,10 +76,8 @@ function gi_fix_jetpack_conflicts() {
 // Fix Gutenberg block editor JavaScript errors
 add_action('enqueue_block_editor_assets', 'gi_fix_block_editor_errors', 100);
 function gi_fix_block_editor_errors() {
-    // Add error handling for block editor
     wp_add_inline_script('wp-blocks', '
         (function() {
-            // Prevent duplicate store registration errors
             var originalRegisterStore = wp.data && wp.data.registerStore;
             if (originalRegisterStore) {
                 wp.data.registerStore = function(storeName, options) {
@@ -104,7 +98,6 @@ function gi_fix_block_editor_errors() {
 // Disable Jetpack modules that cause conflicts
 add_filter('jetpack_get_available_modules', 'gi_disable_problematic_jetpack_modules', 999);
 function gi_disable_problematic_jetpack_modules($modules) {
-    // Remove modules that cause store registration conflicts
     $problematic_modules = array('photon', 'photon-cdn', 'videopress');
     foreach ($problematic_modules as $module) {
         if (isset($modules[$module])) {
@@ -114,28 +107,25 @@ function gi_disable_problematic_jetpack_modules($modules) {
     return $modules;
 }
 
-// Fix customizer 500 error by limiting customizer features
+// Fix customizer 500 error
 add_action('customize_register', 'gi_fix_customizer_errors', 999);
 function gi_fix_customizer_errors($wp_customize) {
-    // Remove sections that might cause conflicts
     $wp_customize->remove_section('custom_css');
 }
 
-// Add error logging for JavaScript errors
+// Add error logging for JavaScript errors (debug mode only)
 add_action('wp_footer', 'gi_add_js_error_logging');
 add_action('admin_footer', 'gi_add_js_error_logging');
 function gi_add_js_error_logging() {
     if (defined('WP_DEBUG') && WP_DEBUG) {
         ?>
         <script>
-        // Global error handler for JavaScript
         window.addEventListener('error', function(e) {
             if (console && console.error) {
                 console.error('JS Error caught:', e.message, 'at', e.filename + ':' + e.lineno);
             }
         });
         
-        // Handle unhandled promise rejections
         window.addEventListener('unhandledrejection', function(e) {
             if (console && console.error) {
                 console.error('Unhandled Promise Rejection:', e.reason);
@@ -146,7 +136,9 @@ function gi_add_js_error_logging() {
     }
 }
 
-// Purpose page rewrite rules
+/**
+ * Purpose Page Rewrite Rules
+ */
 add_action('init', 'gi_register_purpose_rewrite_rules');
 function gi_register_purpose_rewrite_rules() {
     add_rewrite_rule(
@@ -156,7 +148,7 @@ function gi_register_purpose_rewrite_rules() {
     );
 }
 
-// AUTO-FLUSH: Rewrite rules for purpose pages (remove after first load)
+// AUTO-FLUSH: Rewrite rules for purpose pages
 add_action('init', function() {
     if (get_option('gi_purpose_rewrite_flushed') !== 'yes') {
         flush_rewrite_rules(false);
@@ -186,21 +178,14 @@ function gi_purpose_template_redirect() {
 
 /**
  * Get purpose-to-category mapping
- * Maps purpose slugs to actual grant_category taxonomy term slugs from database
- * 
- * @return array Associative array of purpose_slug => array of category_slugs
  */
 function gi_get_purpose_category_mapping() {
-    // Static cache to avoid repeated queries
     static $mapping = null;
     
     if ($mapping !== null) {
         return $mapping;
     }
     
-    // Define mapping between purpose slugs and category term names (Japanese)
-    // v2.1: Updated to match new 8 main + 5 additional purpose structure
-    // Categories are stored as Japanese names to match the actual WordPress taxonomy terms
     $mapping = array(
         // ===== 8 Main Purposes =====
         'equipment' => array(
@@ -286,21 +271,16 @@ function gi_get_purpose_category_mapping() {
 
 /**
  * Get grant categories for a specific purpose
- * 
- * @param string $purpose_slug The purpose slug
- * @return array Array of WP_Term objects, or empty array if not found
  */
 function gi_get_categories_for_purpose($purpose_slug) {
     $mapping = gi_get_purpose_category_mapping();
     
     if (!isset($mapping[$purpose_slug])) {
-        error_log('[Purpose Debug] No mapping found for purpose: ' . $purpose_slug);
         return array();
     }
     
     $category_names = $mapping[$purpose_slug];
     
-    // Query actual terms from database using Japanese names
     $terms = get_terms(array(
         'taxonomy' => 'grant_category',
         'name' => $category_names,
@@ -308,458 +288,210 @@ function gi_get_categories_for_purpose($purpose_slug) {
     ));
     
     if (is_wp_error($terms)) {
-        error_log('[Purpose Debug] Error querying categories: ' . $terms->get_error_message());
         return array();
     }
-    
-    error_log('[Purpose Debug] Found ' . count($terms) . ' category terms for purpose: ' . $purpose_slug);
     
     return $terms;
 }
 
 /**
  * Get category slugs for a specific purpose
- * 
- * @param string $purpose_slug The purpose slug
- * @return array Array of category slugs
  */
 function gi_get_category_slugs_for_purpose($purpose_slug) {
     $terms = gi_get_categories_for_purpose($purpose_slug);
     $slugs = array();
     
     if (empty($terms)) {
-        error_log('[Purpose Debug] No categories found for purpose: ' . $purpose_slug);
-        return $slugs; // Return empty array
+        return $slugs;
     }
     
     foreach ($terms as $term) {
         $slugs[] = $term->slug;
     }
     
-    error_log('[Purpose Debug] Found ' . count($slugs) . ' category slugs for purpose: ' . $purpose_slug);
-    error_log('[Purpose Debug] Category slugs: ' . implode(', ', $slugs));
-    
     return $slugs;
 }
 
-// 統合されたファイルの読み込み（シンプルな配列）
+/**
+ * Load Required Include Files
+ */
 $inc_dir = get_template_directory() . '/inc/';
 
 $required_files = array(
     // Core files
-    'theme-foundation.php',        // テーマ設定、投稿タイプ、タクソノミー
-    'data-processing.php',         // データ処理・ヘルパー関数
+    'theme-foundation.php',
+    'data-processing.php',
     
     // Admin & UI
-    'admin-functions.php',         // 管理画面カスタマイズ + メタボックス (統合済み)
-    'acf-fields.php',              // ACF設定とフィールド定義
-    'customizer-error-handler.php', // カスタマイザーエラーハンドリング (v9.2.1+)
+    'admin-functions.php',
+    'acf-fields.php',
+    'customizer-error-handler.php',
     
     // Core functionality
-    'card-display.php',            // カードレンダリング・表示機能
-    'ajax-functions.php',          // AJAX処理
+    'card-display.php',
+    'ajax-functions.php',
     
-    // AI Assistant Core (Consolidated & Optimized) - v3.0.0
-    'ai-assistant-core.php',       // 🔥 NEW: Single file implementation for all AI features
-    
-    // DEPRECATED AI FILES (Removed to prevent conflicts)
-    // 'ai-functions.php',
-    // 'ai-chat-fixed.php',
-    // 'ai-assistant-enhanced.php',
+    // AI Assistant Core
+    'ai-assistant-core.php',
     
     // Performance optimization
-    'performance-optimization.php', // パフォーマンス最適化（v9.2.0+）
+    'performance-optimization.php',
     
-    // Google Sheets integration (consolidated into one file)
-    'google-sheets-integration.php', // Google Sheets統合（全機能統合版）
-    'safe-sync-manager.php',         // 安全同期管理システム
+    // Google Sheets integration
+    'google-sheets-integration.php',
+    'safe-sync-manager.php',
     
-    // Grant Content SEO Optimizer (v9.3.0+) - DISABLED: Duplicate SEO with single-grant.php
-    // 'grant-content-seo-optimizer.php',  // 助成金コンテンツSEO最適化
+    // Dynamic CSS Generator
+    'grant-dynamic-css-generator.php',
     
-    // Dynamic CSS Generator (v9.3.1+)
-    'grant-dynamic-css-generator.php',  // 投稿内容に応じた動的CSS生成
+    // Column System
+    'column-system.php',
     
-    // Advanced SEO Enhancer (v9.3.2+) - DISABLED: Duplicate SEO with single-grant.php
-    // 'grant-advanced-seo-enhancer.php'   // SEO大幅強化（OGP、Schema.org拡張、内部リンク）
-    
-    // Column System (v1.0.0+) - NEW: コラム機能統合システム
-    'column-system.php',  // コラム機能（カスタム投稿タイプ、ACF、補助金連携、Analytics）
-    // 'column-admin-ui.php',  // コラム管理UI（Phase 3: 承認ワークフロー、分析ダッシュボード、設定） - TEMPORARILY DISABLED
-    
-    // Grant Amount Fixer (v1.0.0+) - NEW: 助成金額修正ツール
-    'grant-amount-fixer.php',  // 日付シリアル値を正しい金額に一括修正
-    
-    // AI Assistant Enhanced (v2.0.0+) - DEPRECATED: Merged into ai-assistant-core.php
-    // 'ai-assistant-enhanced.php',  // AIアシスタント完全版（リアルタイムチャット、診断フロー、ロードマップ生成）
+    // Grant Amount Fixer
+    'grant-amount-fixer.php',
 );
 
-// ファイルを安全に読み込み
 foreach ($required_files as $file) {
     $file_path = $inc_dir . $file;
     if (file_exists($file_path)) {
         require_once $file_path;
-    } else {
-        // デバッグモードの場合のみエラーログに記録
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('Grant Insight: Missing required file: ' . $file);
-        }
+    } elseif (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('Grant Insight: Missing required file: ' . $file);
     }
 }
 
 /**
- * Remove duplicate ACF content from post_content
+ * ============================================================================
+ * CONTENT FILTER: Remove Duplicate Sections (ACTIVE)
+ * ============================================================================
  * 
- * This filter removes HTML sections that are duplicated from ACF fields
- * which are already rendered separately in single-grant.php
- * 
- * @param string $content The post content
- * @return string Filtered content without duplicates
- */
-function gi_remove_duplicate_acf_content($content) {
-    // Only process grant post type single pages
-    if (!is_singular('grant')) {
-        return $content;
-    }
-    
-    // Remove div elements with specific class patterns that duplicate ACF field output
-    $duplicate_patterns = array(
-        // Main section containers
-        '/<div[^>]*class=["\'][^"\']*grant-target[^"\']*["\'][^>]*>.*?<\/div>/is',
-        '/<div[^>]*class=["\'][^"\']*grant-target-section[^"\']*["\'][^>]*>.*?<\/div>/is',
-        
-        // Eligible expenses sections
-        '/<div[^>]*class=["\'][^"\']*eligible-expenses[^"\']*["\'][^>]*>.*?<\/div>/is',
-        '/<div[^>]*class=["\'][^"\']*eligible-expenses-detailed[^"\']*["\'][^>]*>.*?<\/div>/is',
-        
-        // Required documents sections
-        '/<div[^>]*class=["\'][^"\']*required-documents[^"\']*["\'][^>]*>.*?<\/div>/is',
-        '/<div[^>]*class=["\'][^"\']*required-documents-detailed[^"\']*["\'][^>]*>.*?<\/div>/is',
-        '/<div[^>]*class=["\'][^"\']*required-documents-display[^"\']*["\'][^>]*>.*?<\/div>/is',
-        
-        // Grant section wrappers (from SEO optimizer)
-        '/<section[^>]*class=["\'][^"\']*grant-section[^"\']*["\'][^>]*>.*?<\/section>/is',
-        '/<article[^>]*class=["\'][^"\']*grant-article[^"\']*["\'][^>]*>.*?<\/article>/is',
-    );
-    
-    // Apply all removal patterns
-    foreach ($duplicate_patterns as $pattern) {
-        $content = preg_replace($pattern, '', $content);
-    }
-    
-    // Remove empty paragraphs and excessive whitespace
-    $content = preg_replace('/<p[^>]*>\s*<\/p>/i', '', $content);
-    $content = preg_replace('/\n\s*\n\s*\n/i', "\n\n", $content);
-    
-    // Trim extra whitespace
-    $content = trim($content);
-    
-    return $content;
-}
-
-// Add filter with high priority to run early
-// DISABLED: 2025-11-11 - この処理が訪問者の即時離脱（エンゲージメント率47.8%）の原因
-// 理由: サーバー側で重要コンテンツ（対象者、必要書類等）を削除することで、
-//      1. Googleがコンテンツを正しく評価できない（PC順位24位の原因）
-//      2. ユーザーが見るべき情報が消える（即時離脱の原因）
-//      3. single-grant.phpのJavaScript削除と合わせて「二重削除」となり、
-//         ページが一瞬点滅する現象を引き起こす
-// 根本修正: WordPress編集画面でコンテンツを適切に管理し、削除処理に依存しない構造へ
-// add_filter('the_content', 'gi_remove_duplicate_acf_content', 5);
-
-/**
- * Enqueue Column System CSS and JavaScript
- * コラムシステムのCSS・JavaScriptを読み込み
- * 
- * DISABLED: Consolidated into frontend.css and frontend.js
- * These files are now loaded by theme-foundation.php
- * 
- * @return void
- */
-/*
-function gi_enqueue_column_assets() {
-    // コラム関連ページのみ読み込み
-    if (is_singular('column') || is_post_type_archive('column') || 
-        is_tax('column_category') || is_tax('column_tag') || is_front_page()) {
-        
-        // CSS
-        wp_enqueue_style(
-            'gi-column-styles',
-            get_template_directory_uri() . '/assets/css/column.css',
-            array(),
-            GI_THEME_VERSION
-        );
-        
-        // JavaScript
-        wp_enqueue_script(
-            'gi-column-scripts',
-            get_template_directory_uri() . '/assets/js/column.js',
-            array(),
-            GI_THEME_VERSION,
-            true
-        );
-    }
-}
-add_action('wp_enqueue_scripts', 'gi_enqueue_column_assets');
-*/
-
-/**
- * Enqueue Admin Error Fix Script
- * 管理画面のJavaScriptエラーを修正するスクリプトを読み込み
- * 
- * DISABLED: このファイルは存在しないため一時的に無効化
- * 必要に応じてadmin.jsに統合済みの機能を使用
- * 
- * @return void
- */
-/*
-function gi_enqueue_admin_error_fix() {
-    wp_enqueue_script(
-        'gi-admin-error-fix',
-        get_template_directory_uri() . '/assets/js/admin-error-fix.js',
-        array('jquery'),
-        GI_THEME_VERSION,
-        false // Load in header to catch early errors
-    );
-}
-add_action('admin_enqueue_scripts', 'gi_enqueue_admin_error_fix', 1); // Priority 1 to load early
-*/
-
-/**
- * Enqueue Ad Error Handler Script
- * 広告エラーを処理するスクリプトを読み込み
- * 
- * DISABLED: Consolidated into frontend.js
- * This file is now loaded by theme-foundation.php
- * 
- * @return void
- */
-/*
-function gi_enqueue_ad_error_handler() {
-    wp_enqueue_script(
-        'gi-ad-error-handler',
-        get_template_directory_uri() . '/assets/js/ad-error-handler.js',
-        array(),
-        GI_THEME_VERSION,
-        true // Load in footer
-    );
-}
-add_action('wp_enqueue_scripts', 'gi_enqueue_ad_error_handler');
-*/
-
-/**
- * Enqueue Grant Viewing History Tracker
- * 補助金閲覧履歴トラッキングスクリプトを読み込み
- * 
- * DISABLED: Consolidated into frontend.js
- * This file is now loaded by theme-foundation.php
- * The giAjaxConfig localization is now done in theme-foundation.php
- * 
- * @return void
- */
-/*
-function gi_enqueue_viewing_history() {
-    wp_enqueue_script(
-        'gi-viewing-history',
-        get_template_directory_uri() . '/assets/js/grant-viewing-history.js',
-        array(),
-        GI_THEME_VERSION,
-        true // Load in footer
-    );
-    
-    // Ajax URL をJavaScriptに渡す
-    wp_localize_script('gi-viewing-history', 'giAjaxConfig', array(
-        'ajaxUrl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('gi_viewing_history_nonce')
-    ));
-}
-add_action('wp_enqueue_scripts', 'gi_enqueue_viewing_history');
-*/
-
-/**
- * WordPress REST API 設定をJavaScriptに渡す
- * AI AssistantやREST API呼び出しに必要
- */
-function gi_enqueue_rest_api_settings() {
-    // Make sure jQuery is enqueued first
-    wp_enqueue_script('jquery');
-    
-    // Localize script for REST API settings
-    wp_localize_script('jquery', 'wpApiSettings', array(
-        'root' => esc_url_raw(rest_url()),
-        'nonce' => wp_create_nonce('wp_rest')
-    ));
-    
-    // AJAX URL も追加（フォールバック用）
-    wp_localize_script('jquery', 'ajaxSettings', array(
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('wp_rest')
-    ));
-    
-    // Debug log
-    error_log('🔵 REST API Settings localized - Nonce: ' . wp_create_nonce('wp_rest'));
-}
-add_action('wp_enqueue_scripts', 'gi_enqueue_rest_api_settings');
-
-/**
- * Add inline script to verify settings are loaded
- */
-function gi_add_api_settings_debug() {
-    ?>
-    <script>
-    console.log('🔍 Checking API Settings on page load...');
-    console.log('wpApiSettings:', typeof window.wpApiSettings !== 'undefined' ? window.wpApiSettings : '❌ NOT LOADED');
-    console.log('ajaxSettings:', typeof window.ajaxSettings !== 'undefined' ? window.ajaxSettings : '❌ NOT LOADED');
-    </script>
-    <?php
-}
-add_action('wp_footer', 'gi_add_api_settings_debug', 999);
-
-/**
- * REST API: コラムカテゴリフィルタリングに関する注記
- * 
- * WordPressのREST APIは標準でタクソノミーIDによるフィルタリングをサポートしています。
- * 
- * - Post Type: 'column' with rest_base 'columns'
- * - Taxonomy: 'column_category' with rest_base 'column-categories'
- * - Filtering: /wp-json/wp/v2/columns?column-categories={term_id}
- * 
- * Note: column-categoriesパラメータはterm ID（整数）のみを受け付けます。
- * スラッグによるフィルタリングは標準ではサポートされていないため、
- * JavaScriptでterm IDを使用する必要があります。
- */
-
-
-/**
- * Affiliate Ad Manager System
- * アフィリエイト広告管理システム読み込み
- * 
- * @since 1.0.0
- */
-error_log('🔵 functions.php: About to load affiliate-ad-manager.php');
-$affiliate_ad_file = get_template_directory() . '/inc/affiliate-ad-manager.php';
-error_log('🔵 functions.php: File path: ' . $affiliate_ad_file);
-error_log('🔵 functions.php: File exists: ' . (file_exists($affiliate_ad_file) ? 'YES' : 'NO'));
-
-require_once $affiliate_ad_file;
-
-error_log('🔵 functions.php: affiliate-ad-manager.php loaded');
-error_log('🔵 functions.php: ji_display_ad exists: ' . (function_exists('ji_display_ad') ? 'YES' : 'NO'));
-
-/**
- * Access Tracking System
- * アクセストラッキングシステム
- * 
- * @since 1.0.0
- */
-require_once get_template_directory() . '/inc/access-tracking.php';
-
-/**
- * SEO Content Manager
- * SEO記事管理システム - PV数順一覧と修正管理
- * 
- * @since 1.0.0
- */
-require_once get_template_directory() . '/inc/seo-content-manager.php';
-
-/**
  * 本文（the_content）から重複する特定のセクションを削除する
+ * 
+ * 【有効化理由】(2025-11-27)
+ * - 重複コンテンツがユーザー体験を悪化させているため
+ * - single-grant.php の「詳細情報」セクションでACFフィールドから表示される内容と、
+ *   本文で重複する部分を削除することで、ページの可読性を向上
+ * 
+ * 【削除対象】
+ * - テンプレート（ACFフィールド）で既に表示されているセクション
+ * - 本文中の見出しで始まる重複セクション
  */
 function remove_duplicate_sections_from_content($content) {
     // 助成金（grant）の個別ページ以外では実行しない
     if (!is_singular('grant')) {
         return $content;
     }
+    
+    // 空のコンテンツは処理しない
+    if (empty(trim($content))) {
+        return $content;
+    }
 
-    // 削除したい見出しのリスト（正規表現用）
-    // H2, H3, H4タグなどで囲まれたこれらの文言をターゲットにします
+    // 削除したい見出しのリスト
     $targets = [
+        // 完全一致パターン
         '対象経費（詳細）',
         '必要書類（詳細）',
         '対象者・対象事業',
-        '対象経費', // 表記ゆれ対策
-        '必要書類'  // 表記ゆれ対策
+        '■対象経費（詳細）',
+        '■必要書類（詳細）',
+        '■対象者・対象事業',
+        // 表記ゆれ対策
+        '対象経費',
+        '必要書類',
+        '対象者',
+        '対象事業',
+        // 追加パターン
+        '補助対象経費',
+        '申請書類',
+        '提出書類',
     ];
 
     foreach ($targets as $target) {
-        // パターン解説:
-        // <h[2-6]...>見出し</h[2-6]> から、次の <h[2-6]> タグが来る直前（または記事末尾）までを削除
-        $pattern = '/<h[2-6][^>]*>.*?' . preg_quote($target, '/') . '.*?<\/h[2-6]>[\s\S]*?(?=(<h[2-6]|$))/i';
+        $escaped_target = preg_quote($target, '/');
         
-        $content = preg_replace($pattern, '', $content);
+        // パターン1: <h2>〜</h2> 見出しから次の同レベル以上の見出しまで削除
+        $pattern1 = '/<h([2-4])[^>]*>\s*(?:■|●|◆|▼|【|★)?\s*' . $escaped_target . '.*?<\/h\1>[\s\S]*?(?=<h[2-4]|$)/iu';
+        
+        // パターン2: <p><strong>見出し</strong></p> 形式
+        $pattern2 = '/<p[^>]*>\s*<strong>\s*(?:■|●|◆|▼|【|★)?\s*' . $escaped_target . '.*?<\/strong>\s*<\/p>[\s\S]*?(?=<p[^>]*>\s*<strong>|<h[2-6]|$)/iu';
+        
+        $content = preg_replace($pattern1, '', $content);
+        $content = preg_replace($pattern2, '', $content);
     }
+    
+    // 空の段落タグを削除
+    $content = preg_replace('/<p[^>]*>\s*<\/p>/i', '', $content);
+    
+    // 連続した改行を整理
+    $content = preg_replace('/(\s*<br\s*\/?>\s*){3,}/i', '<br><br>', $content);
 
     return $content;
 }
 add_filter('the_content', 'remove_duplicate_sections_from_content', 20);
 
 /**
- * SEO Meta Tags Output (High Priority Fix)
+ * ============================================================================
+ * DISABLED FUNCTIONS - SEO DUPLICATE PREVENTION
+ * ============================================================================
+ * 
+ * 以下の関数は header.php で既に出力されているため無効化しました。
+ * 
+ * 1. gi_add_seo_meta_tags() - DISABLED
+ *    理由: header.php の ji_get_current_page_info() が以下を出力済み
+ *    - <meta name="description">
+ *    - <link rel="canonical">
+ *    - <meta property="og:*"> (OGPタグ全般)
+ *    - <meta name="twitter:*"> (Twitterカード)
+ * 
+ * 2. gi_inject_inline_cta() - DISABLED
+ *    理由: コンテンツの自然な流れを妨げる可能性がある
+ *    CTAが必要な場合は single-grant.php 内で直接配置を推奨
+ * 
+ * 3. gi_remove_duplicate_acf_content() - DISABLED
+ *    理由: remove_duplicate_sections_from_content() と機能が重複
  */
-function gi_add_seo_meta_tags() {
-    if (!is_singular('grant')) return;
-    
-    global $post;
-    $grant_id = $post->ID;
-    
-    // Description
-    $desc = '';
-    $ai_summary = get_post_meta($grant_id, 'ai_summary', true);
-    if ($ai_summary) {
-        $desc = mb_substr(wp_strip_all_tags($ai_summary), 0, 120, 'UTF-8');
-    } else {
-        $desc = mb_substr(wp_strip_all_tags($post->post_content), 0, 120, 'UTF-8');
-    }
-    $desc = str_replace(array("\r", "\n"), '', $desc);
-    
-    echo '<meta name="description" content="' . esc_attr($desc) . '">' . "\n";
-    echo '<link rel="canonical" href="' . esc_url(get_permalink($grant_id)) . '">' . "\n";
-    
-    // OGP
-    echo '<meta property="og:title" content="' . esc_attr(get_the_title($grant_id)) . '">' . "\n";
-    echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
-    echo '<meta property="og:url" content="' . esc_url(get_permalink($grant_id)) . '">' . "\n";
-    echo '<meta property="og:type" content="article">' . "\n";
-    
-    if (has_post_thumbnail($grant_id)) {
-        echo '<meta property="og:image" content="' . esc_url(get_the_post_thumbnail_url($grant_id, 'large')) . '">' . "\n";
-    }
-}
-add_action('wp_head', 'gi_add_seo_meta_tags', 1);
 
 /**
- * Inject Inline CTA (High Priority Fix)
+ * ============================================================================
+ * REST API SETTINGS
+ * ============================================================================
  */
-function gi_inject_inline_cta($content) {
-    if (!is_singular('grant') || is_admin()) return $content;
+function gi_enqueue_rest_api_settings() {
+    wp_enqueue_script('jquery');
     
-    // Only inject if content has enough length/headings
-    if (mb_strlen(strip_tags($content)) < 1000) return $content;
+    wp_localize_script('jquery', 'wpApiSettings', array(
+        'root' => esc_url_raw(rest_url()),
+        'nonce' => wp_create_nonce('wp_rest')
+    ));
     
-    // Inject after 2nd H2
-    $cta_html = '
-    <div class="gi-inline-cta" style="background:#f5f5f5;padding:20px;margin:32px 0;border:2px solid #111;text-align:center;">
-        <p style="font-weight:bold;margin-bottom:12px;">申請の準備はできていますか？</p>
-        <a href="#checklist" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;font-weight:bold;">申請チェックリストを確認する</a>
-    </div>';
-    
-    $headings = preg_split('/(<h2.*?>.*?<\/h2>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
-    $new_content = '';
-    $h2_count = 0;
-    
-    foreach ($headings as $chunk) {
-        $new_content .= $chunk;
-        if (preg_match('/<h2/i', $chunk)) {
-            $h2_count++;
-            if ($h2_count === 2) {
-                $new_content .= $cta_html;
-            }
-        }
-    }
-    
-    // If content was not split (no H2), just return original or append CTA
-    if (count($headings) <= 1) return $content;
-    
-    return $new_content;
+    wp_localize_script('jquery', 'ajaxSettings', array(
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('wp_rest')
+    ));
 }
-add_filter('the_content', 'gi_inject_inline_cta', 30); // Run after other filters
+add_action('wp_enqueue_scripts', 'gi_enqueue_rest_api_settings');
+
+/**
+ * ============================================================================
+ * ADDITIONAL INCLUDE FILES
+ * ============================================================================
+ */
+
+// Affiliate Ad Manager System
+$affiliate_ad_file = get_template_directory() . '/inc/affiliate-ad-manager.php';
+if (file_exists($affiliate_ad_file)) {
+    require_once $affiliate_ad_file;
+}
+
+// Access Tracking System
+$access_tracking_file = get_template_directory() . '/inc/access-tracking.php';
+if (file_exists($access_tracking_file)) {
+    require_once $access_tracking_file;
+}
+
+// SEO Content Manager
+$seo_content_manager_file = get_template_directory() . '/inc/seo-content-manager.php';
+if (file_exists($seo_content_manager_file)) {
+    require_once $seo_content_manager_file;
+}
