@@ -1,10 +1,10 @@
 <?php
 /**
  * JOSEIKIN INSIGHT - Perfect Header
- * メニュー選択強化・ロゴ統一版
+ * SEO Cleaned版 - Yoast SEO完全対応
  * 
  * @package Joseikin_Insight_Header
- * @version 8.0.0
+ * @version 9.1.0 (SEO Cleaned)
  */
 
 if (!defined('ABSPATH')) {
@@ -45,46 +45,7 @@ if (!function_exists('ji_get_header_data')) {
     }
 }
 
-// ページ情報取得
-if (!function_exists('ji_get_current_page_info')) {
-    function ji_get_current_page_info() {
-        $info = ['title' => '', 'description' => '', 'canonical' => '', 'type' => 'website'];
-        $home_url = home_url('/');
-        
-        if (is_front_page()) {
-            $info['title'] = get_bloginfo('name') . ' | 日本最大級の補助金・助成金情報サイト';
-            $info['description'] = '全国の補助金・助成金情報を網羅。専門家監修のもと、最新情報を毎日更新。';
-            $info['canonical'] = $home_url;
-        } elseif (is_post_type_archive('grant')) {
-            $info['title'] = '補助金・助成金一覧 | ' . get_bloginfo('name');
-            $info['description'] = '全国の補助金・助成金を検索。カテゴリー、地域、対象者別に絞り込み可能。';
-            $info['canonical'] = get_post_type_archive_link('grant');
-        } elseif (is_singular('grant')) {
-            $info['title'] = get_the_title() . ' | ' . get_bloginfo('name');
-            $info['description'] = wp_trim_words(get_the_excerpt(), 80, '...');
-            $info['type'] = 'article';
-            $info['canonical'] = get_permalink();
-        } elseif (is_tax('grant_category') || is_tax('grant_prefecture')) {
-            $term = get_queried_object();
-            $info['title'] = $term->name . 'の補助金・助成金一覧 | ' . get_bloginfo('name');
-            $info['description'] = $term->name . 'に関する補助金・助成金情報。';
-            $info['canonical'] = get_term_link($term);
-        } elseif (is_page()) {
-            $info['title'] = get_the_title() . ' | ' . get_bloginfo('name');
-            $info['description'] = wp_trim_words(get_the_excerpt() ?: get_the_content(), 80, '...');
-            $info['canonical'] = get_permalink();
-        } else {
-            $info['title'] = get_bloginfo('name');
-            $info['description'] = get_bloginfo('description');
-            $info['canonical'] = $home_url;
-        }
-        
-        return $info;
-    }
-}
-
 $header_data = ji_get_header_data();
-$page_info = ji_get_current_page_info();
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -93,30 +54,22 @@ $page_info = ji_get_current_page_info();
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
-    <title><?php echo esc_html($page_info['title']); ?></title>
-    <meta name="description" content="<?php echo esc_attr($page_info['description']); ?>">
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-    <link rel="canonical" href="<?php echo esc_url($page_info['canonical']); ?>">
-    
-    <meta property="og:type" content="<?php echo esc_attr($page_info['type']); ?>">
-    <meta property="og:title" content="<?php echo esc_attr($page_info['title']); ?>">
-    <meta property="og:description" content="<?php echo esc_attr($page_info['description']); ?>">
-    <meta property="og:url" content="<?php echo esc_url($page_info['canonical']); ?>">
-    <meta property="og:site_name" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
-    <meta property="og:locale" content="ja_JP">
-    
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="<?php echo esc_attr($page_info['title']); ?>">
-    <meta name="twitter:description" content="<?php echo esc_attr($page_info['description']); ?>">
+    <!-- SEOタグ（title, description, canonical, OGP, Twitter Card, 構造化データ）は
+         すべてYoast SEOプラグインが wp_head() 経由で出力します -->
     
     <meta name="format-detection" content="telephone=no, email=no, address=no">
     <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/fontawesome.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/solid.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/brands.min.css">
     
     <?php wp_head(); ?>
     
@@ -159,8 +112,10 @@ $page_info = ji_get_current_page_info();
             --gray-900: #171717;
             --primary: #2563eb;
             --primary-light: #3b82f6;
+            --primary-dark: #1d4ed8;
             --success: #10b981;
             --danger: #ef4444;
+            --warning: #f59e0b;
             --header-height: 64px;
             --max-width: 1280px;
             --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -204,21 +159,6 @@ $page_info = ji_get_current_page_info();
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         
-        /* ヘッダー内の全テキストを白色に強制 */
-        .ji-header,
-        .ji-header *,
-        .ji-header a,
-        .ji-header button,
-        .ji-header span,
-        .ji-header div:not(.ji-logo-image-wrapper) {
-            color: var(--white) !important;
-        }
-        
-        /* ロゴ画像は除外 */
-        .ji-header img {
-            color: unset !important;
-        }
-        
         @media (min-width: 768px) {
             .ji-header { height: 72px; }
         }
@@ -246,7 +186,7 @@ $page_info = ji_get_current_page_info();
         }
         
         /* ===============================================
-           LOGO - PC/スマホ統一スタイル
+           LOGO
            =============================================== */
         .ji-logo {
             display: flex;
@@ -269,7 +209,6 @@ $page_info = ji_get_current_page_info();
             outline-offset: 2px;
         }
         
-        /* ロゴ画像コンテナ */
         .ji-logo-image-wrapper {
             display: flex;
             align-items: center;
@@ -285,7 +224,6 @@ $page_info = ji_get_current_page_info();
             display: block;
         }
         
-        /* スマホ用ロゴサイズ */
         @media (max-width: 767px) {
             .ji-logo-image {
                 height: 28px;
@@ -293,7 +231,6 @@ $page_info = ji_get_current_page_info();
             }
         }
         
-        /* PC用ロゴサイズ */
         @media (min-width: 768px) {
             .ji-logo-image {
                 height: 32px;
@@ -309,7 +246,7 @@ $page_info = ji_get_current_page_info();
         }
         
         /* ===============================================
-           DESKTOP NAVIGATION - メニュー選択強化
+           DESKTOP NAVIGATION
            =============================================== */
         .ji-nav {
             display: none;
@@ -323,7 +260,6 @@ $page_info = ji_get_current_page_info();
         
         @media (min-width: 1024px) { .ji-nav { display: flex; } }
         
-        /* ナビゲーションアイテム - ホバー領域拡大 */
         .ji-nav-item {
             position: static;
             height: 100%;
@@ -331,13 +267,12 @@ $page_info = ji_get_current_page_info();
             align-items: center;
         }
         
-        /* ナビゲーションリンク - クリック範囲拡大 */
         .ji-nav-link {
             display: flex;
             align-items: center;
             gap: 6px;
             padding: 14px 18px;
-            color: var(--white) !important;
+            color: var(--white);
             font-size: 0.9375rem;
             font-weight: 500;
             border-radius: 8px;
@@ -352,7 +287,7 @@ $page_info = ji_get_current_page_info();
         .ji-nav-link:hover,
         .ji-nav-link:focus-visible {
             background: rgba(255, 255, 255, 0.15);
-            color: var(--white) !important;
+            color: var(--white);
         }
         
         .ji-nav-link:focus-visible {
@@ -368,21 +303,22 @@ $page_info = ji_get_current_page_info();
         .ji-nav-link .ji-icon {
             font-size: 0.875rem;
             opacity: 0.8;
+            color: var(--white);
         }
         
         .ji-nav-link .ji-chevron {
             font-size: 0.625rem;
             margin-left: 4px;
             transition: transform var(--transition);
+            color: var(--white);
         }
         
-        /* メガメニュー表示時のシェブロン回転 */
         .ji-nav-item.menu-active .ji-chevron {
             transform: rotate(180deg);
         }
         
         /* ===============================================
-           MEGA MENU - 選択強化・安定表示
+           MEGA MENU
            =============================================== */
         .ji-mega-menu {
             position: absolute;
@@ -402,7 +338,6 @@ $page_info = ji_get_current_page_info();
             z-index: 9998;
         }
         
-        /* メニューアクティブ時の表示 */
         .ji-nav-item.menu-active .ji-mega-menu {
             opacity: 1;
             visibility: visible;
@@ -410,7 +345,6 @@ $page_info = ji_get_current_page_info();
             pointer-events: auto;
         }
         
-        /* メガメニュー上部のブリッジ領域（カーソル移動時の隙間を埋める） */
         .ji-mega-menu::before {
             content: '';
             position: absolute;
@@ -494,7 +428,6 @@ $page_info = ji_get_current_page_info();
             border-bottom: 2px solid rgba(255, 255, 255, 0.1);
         }
         
-        /* メガメニューリンク - 選択しやすく */
         .ji-mega-link {
             display: flex;
             align-items: center;
@@ -555,7 +488,6 @@ $page_info = ji_get_current_page_info();
         
         .ji-mega-link .ji-badge.new { background: var(--success); }
         
-        /* 都道府県グリッド - 選択しやすく */
         .ji-prefecture-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -665,7 +597,6 @@ $page_info = ji_get_current_page_info();
             box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
         }
         
-        /* Mobile Toggle */
         .ji-mobile-toggle {
             display: flex;
             width: 44px;
@@ -786,6 +717,7 @@ $page_info = ji_get_current_page_info();
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+            color: var(--gray-900);
         }
         
         .ji-search-input::placeholder { color: var(--gray-400); }
@@ -795,7 +727,7 @@ $page_info = ji_get_current_page_info();
             left: 18px;
             top: 50%;
             transform: translateY(-50%);
-            color: var(--gray-400);
+            color: var(--gray-500);
             font-size: 1.125rem;
             pointer-events: none;
         }
@@ -832,7 +764,7 @@ $page_info = ji_get_current_page_info();
         }
         
         .ji-search-suggestion-label {
-            color: var(--gray-500);
+            color: var(--gray-600);
             font-size: 0.8125rem;
             font-weight: 600;
         }
@@ -847,6 +779,7 @@ $page_info = ji_get_current_page_info();
             transition: all var(--transition);
             cursor: pointer;
             min-height: 36px;
+            border: none;
         }
         
         .ji-search-suggestion:hover {
@@ -885,6 +818,12 @@ $page_info = ji_get_current_page_info();
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+            color: var(--gray-700);
+        }
+        
+        .ji-search-select option {
+            color: var(--gray-700);
+            background: var(--white);
         }
         
         .ji-search-submit {
@@ -899,12 +838,14 @@ $page_info = ji_get_current_page_info();
             gap: 8px;
             transition: all var(--transition);
             min-height: 52px;
+            border: none;
         }
         
         .ji-search-submit:hover {
             background: var(--gray-800);
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            color: var(--white);
         }
         
         .ji-search-submit:focus-visible {
@@ -929,16 +870,6 @@ $page_info = ji_get_current_page_info();
         
         .ji-mobile-menu.open { opacity: 1; visibility: visible; }
         
-        /* モバイルメニュー内の全テキストを白色に強制 */
-        .ji-mobile-menu,
-        .ji-mobile-menu *,
-        .ji-mobile-menu a,
-        .ji-mobile-menu button,
-        .ji-mobile-menu span,
-        .ji-mobile-menu div {
-            color: var(--white) !important;
-        }
-        
         .ji-mobile-menu-header {
             display: flex;
             align-items: center;
@@ -960,14 +891,17 @@ $page_info = ji_get_current_page_info();
         .ji-mobile-logo-icon {
             width: 32px;
             height: 32px;
-            background: var(--white);
-            color: var(--black);
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 800;
-            font-size: 0.875rem;
+            overflow: hidden;
+        }
+        
+        .ji-mobile-logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
         
         .ji-mobile-logo-text {
@@ -997,7 +931,6 @@ $page_info = ji_get_current_page_info();
             outline-offset: 2px;
         }
         
-        /* Mobile Search */
         .ji-mobile-search {
             padding: 20px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -1024,6 +957,7 @@ $page_info = ji_get_current_page_info();
             outline: none;
             background: rgba(255, 255, 255, 0.15);
             border-color: var(--primary);
+            color: var(--white);
         }
         
         .ji-mobile-search-icon {
@@ -1036,12 +970,10 @@ $page_info = ji_get_current_page_info();
             pointer-events: none;
         }
         
-        /* Mobile Content */
         .ji-mobile-content { padding: 20px; }
         
         .ji-mobile-section { margin-bottom: 24px; }
         
-        /* Accordion - 選択しやすく */
         .ji-mobile-accordion {
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
@@ -1058,6 +990,8 @@ $page_info = ji_get_current_page_info();
             text-align: left;
             min-height: 60px;
             transition: all var(--transition);
+            background: transparent;
+            border: none;
         }
         
         .ji-mobile-accordion-trigger:hover {
@@ -1095,7 +1029,6 @@ $page_info = ji_get_current_page_info();
             to { opacity: 1; transform: translateY(0); }
         }
         
-        /* モバイルリンク - 選択しやすく */
         .ji-mobile-link {
             display: flex;
             align-items: center;
@@ -1121,7 +1054,6 @@ $page_info = ji_get_current_page_info();
             outline-offset: -2px;
         }
         
-        /* Mobile CTA */
         .ji-mobile-cta {
             background: var(--white);
             color: var(--black);
@@ -1143,6 +1075,7 @@ $page_info = ji_get_current_page_info();
             background: var(--gray-100);
             transform: translateY(-2px);
             box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15);
+            color: var(--black);
         }
         
         .ji-mobile-cta:focus-visible {
@@ -1152,7 +1085,6 @@ $page_info = ji_get_current_page_info();
         
         .ji-mobile-cta i { color: var(--black); }
         
-        /* Mobile Stats */
         .ji-mobile-stats {
             display: flex;
             justify-content: center;
@@ -1178,7 +1110,6 @@ $page_info = ji_get_current_page_info();
             letter-spacing: 0.05em;
         }
         
-        /* Mobile Footer */
         .ji-mobile-footer {
             padding: 28px 20px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -1266,13 +1197,11 @@ $page_info = ji_get_current_page_info();
             height: 100%;
         }
         
-        /* フォーカス表示の強化 */
         :focus-visible {
             outline: 2px solid var(--primary);
             outline-offset: 2px;
         }
         
-        /* タッチデバイス用 */
         @media (hover: none) and (pointer: coarse) {
             .ji-nav-link:hover,
             .ji-mega-link:hover,
@@ -1288,20 +1217,6 @@ $page_info = ji_get_current_page_info();
             }
         }
     </style>
-    
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "url": "<?php echo esc_url(home_url('/')); ?>",
-        "name": "<?php echo esc_js(get_bloginfo('name')); ?>",
-        "potentialAction": {
-            "@type": "SearchAction",
-            "target": "<?php echo esc_url(get_post_type_archive_link('grant')); ?>?search={search_term_string}",
-            "query-input": "required name=search_term_string"
-        }
-    }
-    </script>
 </head>
 
 <body <?php body_class(); ?>>
@@ -1312,7 +1227,7 @@ $page_info = ji_get_current_page_info();
 <!-- Main Header -->
 <header id="ji-header" class="ji-header" role="banner">
     <div class="ji-header-inner">
-        <!-- Logo - 統一スタイル -->
+        <!-- Logo -->
         <a href="<?php echo esc_url(home_url('/')); ?>" class="ji-logo" aria-label="<?php echo esc_attr(get_bloginfo('name')); ?> - ホームへ">
             <div class="ji-logo-image-wrapper">
                 <img 
@@ -1581,8 +1496,10 @@ $page_info = ji_get_current_page_info();
 <div id="ji-mobile-menu" class="ji-mobile-menu" role="dialog" aria-modal="true" aria-label="モバイルメニュー">
     <div class="ji-mobile-menu-header">
         <div class="ji-mobile-logo">
-            <div class="ji-mobile-logo-icon">JI</div>
-            <span class="ji-mobile-logo-text">Joseikin Insight</span>
+            <div class="ji-mobile-logo-icon">
+                <img src="https://joseikin-insight.com/wp-content/uploads/2025/05/cropped-logo3.webp" alt="アイコン" width="32" height="32">
+            </div>
+            <span class="ji-mobile-logo-text">助成金インサイト</span>
         </div>
         <button type="button" id="ji-mobile-close" class="ji-mobile-close" aria-label="メニューを閉じる">
             <i class="fas fa-times" aria-hidden="true"></i>
@@ -1700,7 +1617,6 @@ $page_info = ji_get_current_page_info();
 (function() {
     'use strict';
     
-    // Elements
     const header = document.getElementById('ji-header');
     const searchToggle = document.getElementById('ji-search-toggle');
     const searchPanel = document.getElementById('ji-search-panel');
@@ -1718,9 +1634,6 @@ $page_info = ji_get_current_page_info();
     let activeNavItem = null;
     let menuCloseTimeout = null;
     
-    // ===============================================
-    // MEGA MENU - 改善されたホバー制御
-    // ===============================================
     function initMegaMenus() {
         navItems.forEach(item => {
             const link = item.querySelector('.ji-nav-link');
@@ -1728,11 +1641,9 @@ $page_info = ji_get_current_page_info();
             
             if (!menu) return;
             
-            // マウスがナビアイテムに入った時
             item.addEventListener('mouseenter', () => {
                 clearTimeout(menuCloseTimeout);
                 
-                // 他のメニューを閉じる
                 navItems.forEach(otherItem => {
                     if (otherItem !== item) {
                         otherItem.classList.remove('menu-active');
@@ -1741,21 +1652,17 @@ $page_info = ji_get_current_page_info();
                     }
                 });
                 
-                // このメニューを開く
                 item.classList.add('menu-active');
                 if (link) link.setAttribute('aria-expanded', 'true');
                 activeNavItem = item;
             });
             
-            // マウスがナビアイテムから離れた時
             item.addEventListener('mouseleave', (e) => {
-                // メガメニューに移動する場合は閉じない
                 const relatedTarget = e.relatedTarget;
                 if (relatedTarget && (menu.contains(relatedTarget) || item.contains(relatedTarget))) {
                     return;
                 }
                 
-                // 遅延を持って閉じる
                 menuCloseTimeout = setTimeout(() => {
                     item.classList.remove('menu-active');
                     if (link) link.setAttribute('aria-expanded', 'false');
@@ -1763,7 +1670,6 @@ $page_info = ji_get_current_page_info();
                 }, 150);
             });
             
-            // メガメニュー自体のマウスイベント
             menu.addEventListener('mouseenter', () => {
                 clearTimeout(menuCloseTimeout);
             });
@@ -1781,7 +1687,6 @@ $page_info = ji_get_current_page_info();
                 }, 100);
             });
             
-            // キーボードナビゲーション
             if (link) {
                 link.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -1789,7 +1694,6 @@ $page_info = ji_get_current_page_info();
                             e.preventDefault();
                             const isExpanded = item.classList.contains('menu-active');
                             
-                            // 他のメニューを閉じる
                             navItems.forEach(otherItem => {
                                 otherItem.classList.remove('menu-active');
                                 const otherLink = otherItem.querySelector('.ji-nav-link');
@@ -1814,7 +1718,6 @@ $page_info = ji_get_current_page_info();
             }
         });
         
-        // ヘッダー外クリックでメニューを閉じる
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.ji-nav-item')) {
                 navItems.forEach(item => {
@@ -1826,9 +1729,6 @@ $page_info = ji_get_current_page_info();
         });
     }
     
-    // ===============================================
-    // SCROLL HANDLER
-    // ===============================================
     function handleScroll() {
         const scrollY = window.scrollY;
         
@@ -1841,7 +1741,6 @@ $page_info = ji_get_current_page_info();
         if (scrollY > 150) {
             if (scrollY > lastScrollY + 5) {
                 header?.classList.add('hidden');
-                // メガメニューを閉じる
                 navItems.forEach(item => {
                     item.classList.remove('menu-active');
                     const link = item.querySelector('.ji-nav-link');
@@ -1865,14 +1764,10 @@ $page_info = ji_get_current_page_info();
         }
     }
     
-    // ===============================================
-    // SEARCH FUNCTIONS
-    // ===============================================
     function toggleSearch() {
         isSearchOpen = !isSearchOpen;
         searchPanel?.classList.toggle('open', isSearchOpen);
         
-        // メガメニューを閉じる
         navItems.forEach(item => {
             item.classList.remove('menu-active');
             const link = item.querySelector('.ji-nav-link');
@@ -1901,9 +1796,6 @@ $page_info = ji_get_current_page_info();
         }
     }
     
-    // ===============================================
-    // MOBILE MENU FUNCTIONS
-    // ===============================================
     function openMobileMenu() {
         isMobileMenuOpen = true;
         mobileMenu?.classList.add('open');
@@ -1921,9 +1813,6 @@ $page_info = ji_get_current_page_info();
         mobileToggle?.focus();
     }
     
-    // ===============================================
-    // ACCORDION
-    // ===============================================
     function initAccordions() {
         document.querySelectorAll('.ji-mobile-accordion-trigger').forEach(trigger => {
             trigger.addEventListener('click', () => {
@@ -1931,7 +1820,6 @@ $page_info = ji_get_current_page_info();
                 const contentId = trigger.getAttribute('aria-controls');
                 const content = document.getElementById(contentId);
                 
-                // 他のアコーディオンを閉じる
                 document.querySelectorAll('.ji-mobile-accordion-trigger').forEach(t => {
                     if (t !== trigger) {
                         t.setAttribute('aria-expanded', 'false');
@@ -1946,9 +1834,6 @@ $page_info = ji_get_current_page_info();
         });
     }
     
-    // ===============================================
-    // SEARCH HELPERS
-    // ===============================================
     function initSearchSuggestions() {
         document.querySelectorAll('.ji-search-suggestion').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -1984,9 +1869,6 @@ $page_info = ji_get_current_page_info();
         }
     }
     
-    // ===============================================
-    // FOCUS TRAP
-    // ===============================================
     function trapFocus(element) {
         const focusableElements = element.querySelectorAll(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -2007,22 +1889,17 @@ $page_info = ji_get_current_page_info();
         });
     }
     
-    // ===============================================
-    // EVENT LISTENERS
-    // ===============================================
     window.addEventListener('scroll', requestTick, { passive: true });
     
     searchToggle?.addEventListener('click', toggleSearch);
     mobileToggle?.addEventListener('click', openMobileMenu);
     mobileClose?.addEventListener('click', closeMobileMenu);
     
-    // Keyboard Navigation
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             if (isMobileMenuOpen) closeMobileMenu();
             else if (isSearchOpen) closeSearch();
             else {
-                // メガメニューを閉じる
                 navItems.forEach(item => {
                     item.classList.remove('menu-active');
                     const link = item.querySelector('.ji-nav-link');
@@ -2031,30 +1908,24 @@ $page_info = ji_get_current_page_info();
             }
         }
         
-        // Ctrl/Cmd + K for search
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
             toggleSearch();
         }
     });
     
-    // Close search on outside click
     document.addEventListener('click', (e) => {
         if (isSearchOpen && !e.target.closest('.ji-search-panel') && !e.target.closest('#ji-search-toggle')) {
             closeSearch();
         }
     });
     
-    // Handle resize
     window.addEventListener('resize', () => {
         if (window.innerWidth >= 1024 && isMobileMenuOpen) {
             closeMobileMenu();
         }
     });
     
-    // ===============================================
-    // INITIALIZE
-    // ===============================================
     initMegaMenus();
     initAccordions();
     initSearchSuggestions();
@@ -2067,6 +1938,6 @@ $page_info = ji_get_current_page_info();
     
     handleScroll();
     
-    console.log('[✓] Joseikin Insight Header v8.0.0 - Menu Enhanced');
+    console.log('[✓] Joseikin Insight Header v9.1.0 - SEO Cleaned for Yoast');
 })();
 </script>
